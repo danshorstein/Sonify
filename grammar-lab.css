@@ -1,0 +1,96 @@
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mapping-control {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(31, 41, 55, 0.72);
+}
+
+.mapping-label {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.mapping-control select {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0f172a;
+  color: var(--text);
+  padding: 10px 12px;
+  outline: none;
+}
+
+.mapping-control select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.16);
+}
+
+.mapping-control small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.grammar-viz {
+  align-items: center;
+  min-height: 310px;
+  padding: 8px;
+}
+
+.data-table-shell {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.compact-table table {
+  min-width: 900px;
+  font-size: 0.88rem;
+}
+
+.compact-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #111827;
+}
+
+.compact-table td,
+.compact-table th {
+  padding: 9px 10px;
+}
+
+.mapping-explanation p {
+  margin-top: 0;
+}
+
+.mapping-explanation ul {
+  columns: 2;
+  padding-left: 20px;
+}
+
+.mapping-explanation li span {
+  color: var(--accent);
+}
+
+.feedback-panel {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 980px) {
+  .mapping-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-explanation ul {
+    columns: 1;
+  }
+}
