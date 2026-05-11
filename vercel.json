@@ -1,10 +1,10 @@
 {
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": ".",
+      "routePrefix": "/"
     }
-  ]
+  },
+  "cleanUrls": true,
+  "trailingSlash": false
 }
