@@ -85,6 +85,39 @@
   margin-bottom: 18px;
 }
 
+.spec-json {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #0f172a;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.spec-json:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.point-inspector table {
+  font-size: 0.88rem;
+}
+
+.point-inspector td:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @media (max-width: 980px) {
   .mapping-grid {
     grid-template-columns: 1fr;

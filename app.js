@@ -1,14 +1,19 @@
 import { datasets } from './src/data/datasets.js';
-import { getField, extent, uniqueValues, categoryIndex } from './src/data/schema.js';
+import { getField, extent, categoryIndex } from './src/data/schema.js';
 import { channelDefinitions } from './src/spec/channels.js';
 import { presets } from './src/spec/defaultMappings.js';
-import { midiToFrequency, normalize, pentatonicMidi } from './src/transform/scales.js';
-import { orderRows } from './src/transform/transformData.js';
-import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from './src/audio/instruments.js';
-import { ensureAudioContext, now, playTone, stopAll } from './src/audio/player.js';
+import { buildSpec } from './src/spec/buildSpec.js';
+import { validateSpec } from './src/spec/validateSpec.js';
+import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
+import { ensureAudioContext, now, schedulePoint, stopAll } from './src/audio/player.js';
 
-let selectedDataset = datasets[0];
-let fieldMappings = { ...presets[selectedDataset.id] };
+const state = {
+  dataset: datasets[0],
+  mappings: { ...presets[datasets[0].id] },
+  spec: null,
+  points: [],
+  currentIndex: 0
+};
 
 const datasetOptions = document.getElementById('dataset-options');
 const mappingOptions = document.getElementById('mapping-options');
@@ -20,6 +25,14 @@ const playButton = document.getElementById('play-button');
 const stopButton = document.getElementById('stop-button');
 const tempoSlider = document.getElementById('tempo-slider');
 const tempoValue = document.getElementById('tempo-value');
+const specJson = document.getElementById('spec-json');
+const copySpecButton = document.getElementById('copy-spec');
+const downloadSpecButton = document.getElementById('download-spec');
+const pointInspector = document.getElementById('point-inspector');
+const pointPosition = document.getElementById('point-position');
+const prevPointButton = document.getElementById('prev-point');
+const nextPointButton = document.getElementById('next-point');
+const hearPointButton = document.getElementById('hear-point');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -44,6 +57,59 @@ function init() {
   tempoSlider.addEventListener('input', () => {
     tempoValue.textContent = `${Number(tempoSlider.value).toFixed(1)}x`;
   });
+
+  prevPointButton.addEventListener('click', () => moveToIndex(state.currentIndex - 1));
+  nextPointButton.addEventListener('click', () => moveToIndex(state.currentIndex + 1));
+  hearPointButton.addEventListener('click', () => {
+    const point = state.points[state.currentIndex];
+    if (!point) return;
+    stopAll();
+    ensureAudioContext();
+    schedulePoint(point, { start: now() + 0.05, tempo: Number(tempoSlider.value) });
+  });
+
+  copySpecButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(specText());
+      copySpecButton.textContent = 'Copied!';
+      setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
+    } catch (error) {
+      copySpecButton.textContent = 'Copy failed';
+      setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
+    }
+  });
+
+  downloadSpecButton.addEventListener('click', () => {
+    const blob = new Blob([specText()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sonify-spec-${state.dataset.id}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+function specText() {
+  // data.values is bulky in the viewer but essential for a shareable spec.
+  return JSON.stringify(state.spec, null, 2);
+}
+
+function moveToIndex(index) {
+  const clamped = Math.max(0, Math.min(state.points.length - 1, index));
+  if (clamped === state.currentIndex) return;
+  state.currentIndex = clamped;
+  renderPointInspector();
+}
+
+function recompile() {
+  state.spec = buildSpec(state.dataset, state.mappings, { tempo: Number(tempoSlider.value) });
+  const validation = validateSpec(state.spec);
+  if (!validation.valid) {
+    console.warn('Sonify spec validation errors:', validation.errors);
+  }
+  state.points = compileEncodedPoints(state.spec);
+  state.currentIndex = Math.max(0, Math.min(state.points.length - 1, state.currentIndex));
 }
 
 function insertAdditionalPanels() {
@@ -67,11 +133,13 @@ function renderDatasetButtons() {
 
   datasets.forEach((dataset) => {
     const button = document.createElement('button');
-    button.className = `option-button ${dataset.id === selectedDataset.id ? 'active' : ''}`;
+    button.className = `option-button ${dataset.id === state.dataset.id ? 'active' : ''}`;
+    button.setAttribute('aria-pressed', String(dataset.id === state.dataset.id));
     button.innerHTML = `<strong>${dataset.name}</strong><span>${dataset.description}</span>`;
     button.addEventListener('click', () => {
-      selectedDataset = dataset;
-      fieldMappings = { ...presets[dataset.id] };
+      state.dataset = dataset;
+      state.mappings = { ...presets[dataset.id] };
+      state.currentIndex = 0;
       renderAll();
     });
     datasetOptions.appendChild(button);
@@ -86,9 +154,9 @@ function renderFieldMappingControls() {
     const wrapper = document.createElement('label');
     wrapper.className = 'mapping-control';
 
-    const options = selectedDataset.fields
+    const options = state.dataset.fields
       .filter((field) => channel.accepted.includes(field.type))
-      .map((field) => `<option value="${field.key}" ${fieldMappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
+      .map((field) => `<option value="${field.key}" ${state.mappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
       .join('');
 
     wrapper.innerHTML = `
@@ -102,7 +170,7 @@ function renderFieldMappingControls() {
 
     const select = wrapper.querySelector('select');
     select.addEventListener('change', (event) => {
-      fieldMappings[channel.key] = event.target.value === 'none' ? null : event.target.value;
+      state.mappings[channel.key] = event.target.value === 'none' ? null : event.target.value;
       renderAll({ skipControls: true });
     });
 
@@ -111,58 +179,53 @@ function renderFieldMappingControls() {
 }
 
 function renderAll(options = {}) {
+  recompile();
+
   if (!options.skipControls) {
     renderDatasetButtons();
     renderFieldMappingControls();
   }
 
-  chartType.textContent = `${selectedDataset.rows.length} rows · ${selectedDataset.fields.length} fields`;
+  chartType.textContent = `${state.dataset.rows.length} rows · ${state.dataset.fields.length} fields`;
   mappingFit.textContent = 'Custom grammar';
   mappingDescription.textContent = 'Each row is rendered as a small audio event. Your field mappings determine the pitch, rhythm, duration, chord, motif, pan, volume, timbre, and state-harmony cues. This is intentionally a grammar playground, not a finished chart recommendation.';
 
   renderVisualization();
   renderDataTable();
   renderExplanation();
-}
-
-function normalizeField(value, fieldKey) {
-  return normalize(value, extent(selectedDataset.rows, fieldKey));
-}
-
-function fieldCategoryIndex(value, fieldKey) {
-  return categoryIndex(selectedDataset.rows, fieldKey, value);
+  renderSpecViewer();
+  renderPointInspector();
 }
 
 function renderVisualization() {
   visualization.innerHTML = '';
   visualization.className = 'viz grammar-viz';
 
-  const pitchField = fieldMappings.pitch || selectedDataset.fields.find((field) => field.type === 'quantitative')?.key;
-  const colorField = fieldMappings.timbre || fieldMappings.chord || fieldMappings.motif;
-  const timeField = fieldMappings.time;
-  const rows = orderRows(selectedDataset.rows, fieldMappings.time);
-  const [min, max] = extent(selectedDataset.rows, pitchField);
+  const pitchField = state.mappings.pitch || state.dataset.fields.find((field) => field.type === 'quantitative')?.key;
+  const colorField = state.mappings.timbre || state.mappings.chord || state.mappings.motif;
+  const timeField = state.mappings.time;
+  const [min, max] = extent(state.dataset.rows, pitchField);
 
   const width = 720;
   const height = 260;
   const pad = 26;
 
-  const points = rows.map((row, index) => {
-    const x = pad + (index / Math.max(1, rows.length - 1)) * (width - pad * 2);
-    const value = Number(row[pitchField]);
+  const points = state.points.map((point, index) => {
+    const x = pad + (index / Math.max(1, state.points.length - 1)) * (width - pad * 2);
+    const value = Number(point.row[pitchField]);
     const y = height - pad - ((value - min) / Math.max(1, max - min)) * (height - pad * 2);
-    return { x, y, row };
+    return { x, y, row: point.row };
   });
 
   const circles = points.map(({ x, y, row }) => {
     const category = colorField ? row[colorField] : '';
-    const hue = colorField ? (fieldCategoryIndex(category, colorField) * 72) % 360 : 195;
+    const hue = colorField ? (categoryIndex(state.dataset.rows, colorField, category) * 72) % 360 : 195;
     return `<circle cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
   const line = points.map((point) => `${point.x},${point.y}`).join(' ');
   const labels = points.map(({ x, row }, index) => {
-    if (index % 2 === 1 && rows.length > 8) return '';
+    if (index % 2 === 1 && points.length > 8) return '';
     const text = timeField ? row[timeField] : index + 1;
     return `<text x="${x}" y="${height - 4}" text-anchor="middle" fill="#a7b0be" font-size="11">${text}</text>`;
   }).join('');
@@ -174,16 +237,16 @@ function renderVisualization() {
       <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
       ${circles}
       ${labels}
-      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(selectedDataset, pitchField)?.label || 'none'}</text>
+      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(state.dataset, pitchField)?.label || 'none'}</text>
     </svg>
   `;
 }
 
 function renderDataTable() {
-  const rows = selectedDataset.rows;
-  const headers = selectedDataset.fields.map((field) => `<th>${field.label}</th>`).join('');
+  const rows = state.dataset.rows;
+  const headers = state.dataset.fields.map((field) => `<th>${field.label}</th>`).join('');
   const body = rows.map((row) => {
-    const cells = selectedDataset.fields.map((field) => `<td>${row[field.key]}</td>`).join('');
+    const cells = state.dataset.fields.map((field) => `<td>${row[field.key]}</td>`).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
 
@@ -199,10 +262,10 @@ function renderDataTable() {
 
 function renderExplanation() {
   const items = channelDefinitions
-    .filter((channel) => fieldMappings[channel.key])
+    .filter((channel) => state.mappings[channel.key])
     .map((channel) => {
-      const field = getField(selectedDataset, fieldMappings[channel.key]);
-      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || fieldMappings[channel.key]}</span>.</li>`;
+      const field = getField(state.dataset, state.mappings[channel.key]);
+      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || state.mappings[channel.key]}</span>.</li>`;
     })
     .join('');
 
@@ -212,106 +275,54 @@ function renderExplanation() {
   `;
 }
 
-function rowLabel(row) {
-  const nominal = selectedDataset.fields.find((field) => field.type === 'nominal');
-  const temporal = selectedDataset.fields.find((field) => field.type === 'temporal');
-  return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
+function renderSpecViewer() {
+  specJson.textContent = specText();
 }
 
-// --- Mapping -> audio-event math. Formalized into src/compiler/ in Phase 2. ---
-
-function fieldFrequency(row) {
-  const field = fieldMappings.pitch;
-  if (!field) return midiToFrequency(60);
-  return midiToFrequency(pentatonicMidi(normalizeField(row[field], field)));
-}
-
-function fieldDuration(row, tempo) {
-  const field = fieldMappings.duration;
-  if (!field) return 0.28 / tempo;
-  return (0.16 + normalizeField(row[field], field) * 0.48) / tempo;
-}
-
-function fieldVolume(row) {
-  const field = fieldMappings.volume;
-  if (!field) return 0.13;
-  return 0.06 + normalizeField(row[field], field) * 0.12;
-}
-
-function fieldPan(row) {
-  const field = fieldMappings.pan;
-  if (!field) return 0;
-  const fieldDef = getField(selectedDataset, field);
-  if (fieldDef?.type === 'quantitative') return -0.75 + normalizeField(row[field], field) * 1.5;
-  const values = uniqueValues(selectedDataset.rows, field);
-  if (values.length <= 1) return 0;
-  return -0.75 + (fieldCategoryIndex(row[field], field) / (values.length - 1)) * 1.5;
-}
-
-function fieldWaveform(row) {
-  const field = fieldMappings.timbre;
-  if (!field) return 'sine';
-  return WAVEFORMS[fieldCategoryIndex(row[field], field) % WAVEFORMS.length];
-}
-
-function playChordForRow(row, start, tempo, pan) {
-  const field = fieldMappings.chord;
-  if (!field) return;
-
-  const chord = CHORD_BANK[fieldCategoryIndex(row[field], field) % CHORD_BANK.length];
-  chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.26 / tempo, 'sine', 0.035, pan));
-}
-
-function playMotifForRow(row, start, tempo, pan) {
-  const field = fieldMappings.motif;
-  if (!field) return 0;
-
-  const motif = MOTIF_BANK[fieldCategoryIndex(row[field], field) % MOTIF_BANK.length];
-  motif.forEach((midi, index) => {
-    playTone(midiToFrequency(midi), start + index * (0.08 / tempo), 0.055 / tempo, 'triangle', 0.055, pan);
-  });
-
-  return 0.28 / tempo;
-}
-
-function playRhythmForRow(row, start, tempo, baseFreq, pan) {
-  const field = fieldMappings.rhythm;
-  if (!field) return;
-
-  const pulses = 1 + Math.round(normalizeField(row[field], field) * 6);
-  for (let i = 0; i < pulses; i += 1) {
-    playTone(baseFreq * 2, start + i * (0.055 / tempo), 0.028 / tempo, 'square', 0.025, pan);
+function renderPointInspector() {
+  const point = state.points[state.currentIndex];
+  if (!point) {
+    pointInspector.innerHTML = '<p class="description">No encoded points.</p>';
+    pointPosition.textContent = '';
+    return;
   }
+
+  pointPosition.textContent = `${point.index + 1} of ${state.points.length} · ${point.position.label}`;
+  prevPointButton.disabled = point.index === 0;
+  nextPointButton.disabled = point.index === state.points.length - 1;
+
+  const channelRows = Object.entries(point.explanation).map(([channel, detail]) => `
+    <tr>
+      <td>${channel}</td>
+      <td>${detail.field}</td>
+      <td>${detail.raw}</td>
+      <td>${detail.scaled}</td>
+    </tr>
+  `).join('');
+
+  pointInspector.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Channel</th><th>Field</th><th>Raw</th><th>Scaled</th></tr></thead>
+        <tbody>${channelRows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
-function playStatusForRow(row, start, tempo, pan) {
-  const field = fieldMappings.status;
-  if (!field) return;
-
-  const state = statusStateFor(normalizeField(row[field], field));
-  state.chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.42 / tempo, state.wave, state.volume, pan));
+function rowLabel(row) {
+  const nominal = state.dataset.fields.find((field) => field.type === 'nominal');
+  const temporal = state.dataset.fields.find((field) => field.type === 'temporal');
+  return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 
 function playCombinedMapping() {
   const tempo = Number(tempoSlider.value);
-  const rows = orderRows(selectedDataset.rows, fieldMappings.time);
   const step = 0.72 / tempo;
   const startBase = now() + 0.08;
 
-  rows.forEach((row, index) => {
-    const eventStart = startBase + index * step;
-    const pan = fieldPan(row);
-    const motifOffset = playMotifForRow(row, eventStart, tempo, pan);
-    const mainStart = eventStart + motifOffset;
-    const freq = fieldFrequency(row);
-    const duration = fieldDuration(row, tempo);
-    const volume = fieldVolume(row);
-    const wave = fieldWaveform(row);
-
-    playChordForRow(row, mainStart, tempo, pan);
-    playStatusForRow(row, mainStart, tempo, pan);
-    playRhythmForRow(row, mainStart, tempo, freq, pan);
-    playTone(freq, mainStart + 0.06 / tempo, duration, wave, volume, pan);
+  state.points.forEach((point, index) => {
+    schedulePoint(point, { start: startBase + index * step, tempo });
   });
 }
 

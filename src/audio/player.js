@@ -1,5 +1,11 @@
 // All Web Audio output goes through this module.
 
+// Fixed layer gains for identity/context cues. These are deliberately quiet:
+// volume is only ever a secondary encoding.
+const MOTIF_GAIN = 0.055;
+const CHORD_GAIN = 0.035;
+const PULSE_GAIN = 0.025;
+
 let audioContext = null;
 let activeNodes = [];
 
@@ -46,4 +52,44 @@ export function playTone(freq, start, duration, type = 'sine', volume = 0.13, pa
   osc.start(start);
   osc.stop(start + duration + 0.02);
   activeNodes.push(osc);
+}
+
+function midiToFrequency(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+// Schedules one encoded point (motif lead-in, chord, status harmony, rhythm
+// pulses, then the main value tone) at an absolute AudioContext time.
+// Returns the point's total lead-in offset in seconds.
+export function schedulePoint(point, { start, tempo = 1 } = {}) {
+  ensureAudioContext();
+  const audio = point.audio;
+  const eventStart = start ?? now() + 0.05;
+  const pan = audio.pan;
+
+  if (audio.motif) {
+    audio.motif.forEach((midi, index) => {
+      playTone(midiToFrequency(midi), eventStart + index * (0.08 / tempo), 0.055 / tempo, 'triangle', MOTIF_GAIN, pan);
+    });
+  }
+
+  const mainStart = eventStart + audio.motifLeadIn / tempo;
+
+  if (audio.chord) {
+    audio.chord.forEach((midi) => playTone(midiToFrequency(midi), mainStart, 0.26 / tempo, 'sine', CHORD_GAIN, pan));
+  }
+
+  if (audio.statusState) {
+    audio.statusState.chord.forEach((midi) => {
+      playTone(midiToFrequency(midi), mainStart, 0.42 / tempo, audio.statusState.wave, audio.statusState.volume, pan);
+    });
+  }
+
+  for (let i = 0; i < audio.pulseCount; i += 1) {
+    playTone(audio.pitchHz * 2, mainStart + i * (0.055 / tempo), 0.028 / tempo, 'square', PULSE_GAIN, pan);
+  }
+
+  playTone(audio.pitchHz, mainStart + 0.06 / tempo, audio.duration / tempo, audio.waveform, audio.gain, pan);
+
+  return audio.motifLeadIn / tempo;
 }

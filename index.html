@@ -73,6 +73,33 @@
         </article>
       </section>
 
+      <section class="grid two-column">
+        <article class="panel" aria-labelledby="inspector-title">
+          <div class="section-header">
+            <h2 id="inspector-title">Point inspector</h2>
+            <span id="point-position" class="pill"></span>
+          </div>
+          <div class="controls">
+            <button id="prev-point" class="secondary-button">&#9664; Previous</button>
+            <button id="next-point" class="secondary-button">Next &#9654;</button>
+            <button id="hear-point" class="secondary-button">Hear this point</button>
+          </div>
+          <div id="point-inspector" class="point-inspector"></div>
+        </article>
+
+        <article class="panel" aria-labelledby="spec-title">
+          <div class="section-header">
+            <h2 id="spec-title">Sonify spec</h2>
+            <span class="pill">single source of truth</span>
+          </div>
+          <div class="controls">
+            <button id="copy-spec" class="secondary-button">Copy JSON</button>
+            <button id="download-spec" class="secondary-button">Download spec</button>
+          </div>
+          <pre id="spec-json" class="spec-json" tabindex="0" aria-label="Sonify spec as JSON"></pre>
+        </article>
+      </section>
+
       <section class="panel" aria-labelledby="mapping-table-title">
         <h2 id="mapping-table-title">Grammar mapping table</h2>
         <div class="table-wrap">
