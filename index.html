@@ -46,6 +46,22 @@
         </article>
       </section>
 
+      <section class="panel" aria-labelledby="import-title">
+        <h2 id="import-title">Import a Vega-Lite or Altair chart</h2>
+        <p class="description import-description">
+          Paste Vega-Lite JSON with inline <code>data.values</code>. From Altair, that is simply <code>chart.to_dict()</code>.
+          Supported marks: bar, line (single or multi-series), and point/circle. Sonify suggests audio mappings
+          (x&#8594;time, y&#8594;pitch, color&#8594;timbre+pan, size&#8594;loudness) that you can override above.
+        </p>
+        <div class="controls" id="example-buttons" role="group" aria-label="Example charts"></div>
+        <label class="vl-label" for="vl-input">Vega-Lite JSON</label>
+        <textarea id="vl-input" class="vl-textarea" rows="8" spellcheck="false" placeholder='{"mark": "bar", "data": {"values": [...]}, "encoding": {...}}'></textarea>
+        <div class="controls">
+          <button id="import-vl" class="primary-button">Import chart</button>
+        </div>
+        <p id="import-error" class="import-error" role="alert"></p>
+      </section>
+
       <section class="grid two-column">
         <article class="panel" aria-labelledby="visual-title">
           <div class="section-header">
@@ -170,6 +186,9 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

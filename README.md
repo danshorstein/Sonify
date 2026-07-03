@@ -32,6 +32,18 @@ adapter accepts Vega-Lite JSON with inline `data.values`, suggests audio
 mappings (x→time, y→pitch, color→timbre+pan, size→loudness), and compiles into
 the same pipeline as the demo datasets.
 
+To import: paste the JSON into the "Import a Vega-Lite or Altair chart" panel
+(or load one of the three bundled examples — bar, multi-series line, scatter)
+and press Import. Supported marks: `bar`, `line` (single and color-grouped
+multi-series), `point`/`circle`. Horizontal charts (quantitative x against a
+categorical y) are handled by swapping the axis suggestions. The suggested
+mappings are defaults — override any of them in the mapping UI.
+
+Imported charts get **synchronized dual rendering**: the real chart renders
+via vega-embed next to the audio controls, scrubbing the audio moves a cursor
+on the chart, and clicking a mark jumps the audio to that point — so a sighted
+analyst and a blind analyst can explore the same artifact together.
+
 **Altair support is Vega-Lite support**: an Altair chart is just
 `chart.to_dict()`. Paste the resulting JSON into Sonify and it is treated
 exactly like any Vega-Lite spec.

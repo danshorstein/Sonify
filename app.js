@@ -9,6 +9,8 @@ import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
 import { ensureAudioContext, playQueue, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
 import { speak, stopSpeech } from './src/audio/speech.js';
 import { bindExplorer, CONTROLS } from './src/interaction/navigation.js';
+import { vegaLiteToSonify } from './src/spec/vegaLiteAdapter.js';
+import { exampleSpecs } from './src/spec/examples.js';
 
 const state = {
   dataset: datasets[0],
@@ -20,8 +22,15 @@ const state = {
   region: null,
   zoomed: false,
   vizXs: [],
-  lastScrubAudioAt: 0
+  lastScrubAudioAt: 0,
+  imported: null
 };
+
+// vega-embed view state for imported charts (Amendment 4 dual rendering).
+let vegaView = null;
+let vegaEmbedded = null; // which import the current view renders
+let vegaRenderToken = 0;
+let vegaPointXs = []; // canvas-relative x px per encoded point
 
 const datasetOptions = document.getElementById('dataset-options');
 const mappingOptions = document.getElementById('mapping-options');
@@ -47,6 +56,10 @@ const comparePointButton = document.getElementById('compare-point');
 const anchorStatus = document.getElementById('anchor-status');
 const announcer = document.getElementById('announcer');
 const helpButton = document.getElementById('help-button');
+const exampleButtons = document.getElementById('example-buttons');
+const vlInput = document.getElementById('vl-input');
+const importButton = document.getElementById('import-vl');
+const importError = document.getElementById('import-error');
 const helpOverlay = document.getElementById('help-overlay');
 const helpTableBody = document.querySelector('#help-table tbody');
 const closeHelpButton = document.getElementById('close-help');
@@ -98,6 +111,26 @@ function init() {
     link.download = `sonify-spec-${state.dataset.id}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  });
+
+  exampleSpecs.forEach((example) => {
+    const button = document.createElement('button');
+    button.className = 'secondary-button';
+    button.textContent = `Load example: ${example.label}`;
+    button.addEventListener('click', () => {
+      vlInput.value = JSON.stringify(example.spec, null, 2);
+      importVegaLite();
+    });
+    exampleButtons.appendChild(button);
+  });
+
+  importButton.addEventListener('click', importVegaLite);
+
+  window.addEventListener('resize', () => {
+    if (vegaView) {
+      buildVegaPointXs();
+      updateCursor();
+    }
   });
 
   helpButton.addEventListener('click', openHelp);
@@ -366,8 +399,40 @@ function renderAnchorStatus() {
     : 'No anchor set. Press A on a point to bookmark it for comparison.';
 }
 
+function importVegaLite() {
+  importError.textContent = '';
+  const text = vlInput.value.trim();
+  if (!text) {
+    importError.textContent = 'Paste a Vega-Lite JSON spec first.';
+    return;
+  }
+
+  let result;
+  try {
+    result = vegaLiteToSonify(text);
+  } catch (error) {
+    importError.textContent = error instanceof SyntaxError ? `Not valid JSON: ${error.message}` : error.message;
+    announce(`Import failed. ${importError.textContent}`);
+    return;
+  }
+
+  stopAll();
+  state.imported = result;
+  state.dataset = result.dataset;
+  state.mappings = { ...result.mappings };
+  state.currentIndex = 0;
+  state.anchorIndex = null;
+  state.region = null;
+  state.zoomed = false;
+  renderAll();
+  announce(`Imported ${result.dataset.name}: ${result.dataset.rows.length} points. Suggested mappings applied. Focus the chart to explore.`);
+}
+
 function recompile() {
-  state.spec = buildSpec(state.dataset, state.mappings, { tempo: tempo() });
+  state.spec = buildSpec(state.dataset, state.mappings, {
+    tempo: tempo(),
+    articulation: state.dataset.articulation
+  });
   const validation = validateSpec(state.spec);
   if (!validation.valid) {
     console.warn('Sonify spec validation errors:', validation.errors);
@@ -400,14 +465,17 @@ function insertAdditionalPanels() {
 function renderDatasetButtons() {
   datasetOptions.innerHTML = '';
 
-  datasets.forEach((dataset) => {
+  const selectable = [...datasets];
+  if (state.imported) selectable.push(state.imported.dataset);
+
+  selectable.forEach((dataset) => {
     const button = document.createElement('button');
     button.className = `option-button ${dataset.id === state.dataset.id ? 'active' : ''}`;
     button.setAttribute('aria-pressed', String(dataset.id === state.dataset.id));
     button.innerHTML = `<strong>${dataset.name}</strong><span>${dataset.description}</span>`;
     button.addEventListener('click', () => {
       state.dataset = dataset;
-      state.mappings = { ...presets[dataset.id] };
+      state.mappings = dataset.id === 'imported' ? { ...state.imported.mappings } : { ...presets[dataset.id] };
       state.currentIndex = 0;
       state.anchorIndex = null;
       state.region = null;
@@ -471,8 +539,20 @@ function renderAll(options = {}) {
 }
 
 function renderVisualization() {
+  // Imported charts get true dual rendering: the real Vega-Lite chart with a
+  // synchronized audio cursor. Demo datasets keep the hand-rolled preview.
+  if (state.dataset.id === 'imported' && window.vegaEmbed) {
+    renderVegaChart();
+    return;
+  }
+
+  vegaView = null;
+  vegaEmbedded = null;
+  vegaRenderToken += 1;
+
   visualization.innerHTML = '';
   visualization.classList.add('grammar-viz');
+  visualization.classList.remove('vega-host');
 
   const pitchField = state.mappings.pitch || state.dataset.fields.find((field) => field.type === 'quantitative')?.key;
   const colorField = state.mappings.timbre || state.mappings.chord || state.mappings.motif;
@@ -522,6 +602,142 @@ function renderVisualization() {
   updateRegionVisual();
 }
 
+async function renderVegaChart() {
+  const imported = state.imported;
+  // Re-embedding is only needed when the imported chart itself changes;
+  // mapping tweaks just re-sync the cursor.
+  if (vegaEmbedded === imported && vegaView) {
+    buildVegaPointXs();
+    updateCursor();
+    return;
+  }
+
+  const token = ++vegaRenderToken;
+  visualization.classList.remove('grammar-viz');
+  visualization.classList.add('vega-host');
+  visualization.innerHTML = `
+    <div id="vega-chart"></div>
+    <div id="vega-cursor" class="vega-cursor" hidden></div>
+  `;
+
+  const vlSpec = { width: 'container', height: 240, ...imported.meta.vlSpec };
+
+  try {
+    const result = await window.vegaEmbed(visualization.querySelector('#vega-chart'), vlSpec, {
+      actions: false,
+      tooltip: false,
+      config: {
+        background: 'transparent',
+        axis: { labelColor: '#a7b0be', titleColor: '#a7b0be', gridColor: '#2f3a4a', domainColor: '#2f3a4a', tickColor: '#2f3a4a' },
+        legend: { labelColor: '#a7b0be', titleColor: '#a7b0be' },
+        title: { color: '#f8fafc' },
+        view: { stroke: '#2f3a4a' }
+      }
+    });
+    if (token !== vegaRenderToken) {
+      result.view.finalize();
+      return;
+    }
+    vegaView = result.view;
+    vegaEmbedded = imported;
+    vegaView.addEventListener('click', (event, item) => {
+      const index = indexFromDatum(item?.datum);
+      if (index !== null) moveToIndex(index);
+    });
+    buildVegaPointXs();
+    updateCursor();
+  } catch (error) {
+    console.warn('vega-embed failed; falling back to the built-in preview.', error);
+    if (token === vegaRenderToken) {
+      vegaView = null;
+      vegaEmbedded = null;
+      visualization.classList.remove('vega-host');
+      renderFallbackPreview();
+    }
+  }
+}
+
+function renderFallbackPreview() {
+  // Reuse the SVG preview path without re-entering the vega branch.
+  const dataset = state.dataset;
+  state.dataset = { ...dataset, id: `${dataset.id}-fallback` };
+  try {
+    renderVisualization();
+  } finally {
+    state.dataset = dataset;
+  }
+}
+
+function buildVegaPointXs() {
+  vegaPointXs = [];
+  if (!vegaView || !state.imported) return;
+
+  try {
+    const meta = state.imported.meta;
+    const scale = vegaView.scale('x');
+    const bandOffset = typeof scale.bandwidth === 'function' ? scale.bandwidth() / 2 : 0;
+
+    vegaPointXs = state.points.map((point) => {
+      let value = point.row[meta.xField];
+      if (meta.xType === 'temporal' && !(value instanceof Date)) {
+        const asDate = new Date(value);
+        if (!Number.isNaN(+asDate)) value = asDate;
+      }
+      const px = scale(value);
+      return Number.isFinite(px) ? px + bandOffset : null;
+    });
+  } catch (error) {
+    console.warn('Could not compute chart cursor positions.', error);
+    vegaPointXs = [];
+  }
+}
+
+function vegaCanvasElement() {
+  return visualization.querySelector('#vega-chart canvas, #vega-chart svg');
+}
+
+function updateVegaCursor() {
+  const cursor = visualization.querySelector('#vega-cursor');
+  const canvas = vegaCanvasElement();
+  if (!cursor || !canvas || !vegaView) return;
+
+  const px = vegaPointXs[state.currentIndex];
+  if (px === null || px === undefined) {
+    cursor.hidden = true;
+    return;
+  }
+
+  const origin = vegaView.origin();
+  const canvasRect = canvas.getBoundingClientRect();
+  const hostRect = visualization.getBoundingClientRect();
+
+  cursor.hidden = false;
+  cursor.style.left = `${canvasRect.left - hostRect.left + origin[0] + px - 1}px`;
+  cursor.style.top = `${canvasRect.top - hostRect.top + origin[1]}px`;
+  cursor.style.height = `${vegaView.height()}px`;
+}
+
+function indexFromDatum(datum) {
+  if (!datum || !state.imported) return null;
+
+  const meta = state.imported.meta;
+  const matches = (rowValue, datumValue, type) => {
+    if (type === 'temporal') {
+      const a = +new Date(rowValue);
+      const b = datumValue instanceof Date ? +datumValue : +new Date(datumValue);
+      if (Number.isFinite(a) && Number.isFinite(b)) return a === b;
+    }
+    return String(rowValue) === String(datumValue) || Number(rowValue) === Number(datumValue);
+  };
+
+  for (const point of state.points) {
+    if (!matches(point.row[meta.xField], datum[meta.xField], meta.xType)) continue;
+    if (meta.colorField && String(point.row[meta.colorField]) !== String(datum[meta.colorField])) continue;
+    return point.index;
+  }
+  return null;
+}
+
 function updateRegionVisual() {
   const rect = visualization.querySelector('#viz-region');
   if (!rect) return;
@@ -541,6 +757,11 @@ function updateRegionVisual() {
 }
 
 function updateCursor() {
+  if (vegaView) {
+    updateVegaCursor();
+    return;
+  }
+
   const svg = visualization.querySelector('svg');
   if (!svg) return;
 
@@ -557,6 +778,25 @@ function updateCursor() {
 }
 
 function indexFromClientX(clientX) {
+  if (vegaView) {
+    const canvas = vegaCanvasElement();
+    if (!canvas || !vegaPointXs.length) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left - vegaView.origin()[0];
+
+    let best = null;
+    let bestDistance = Infinity;
+    vegaPointXs.forEach((candidate, index) => {
+      if (candidate === null || candidate === undefined) return;
+      const distance = Math.abs(candidate - x);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    });
+    return best;
+  }
+
   const svg = visualization.querySelector('svg');
   if (!svg || !state.vizXs.length) return null;
 

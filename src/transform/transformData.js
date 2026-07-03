@@ -1,8 +1,11 @@
 // Row ordering and (later) filter/sort/group/bin transforms.
 
-export function orderRows(rows, timeField) {
+// Nominal sequence fields (category axes, month names, ...) keep data order,
+// matching what a bar chart displays; temporal and quantitative fields sort
+// ascending.
+export function orderRows(rows, timeField, timeFieldType) {
   const copy = [...rows];
-  if (!timeField) return copy;
+  if (!timeField || timeFieldType === 'nominal') return copy;
 
   return copy.sort((a, b) => {
     const av = a[timeField];

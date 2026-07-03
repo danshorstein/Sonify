@@ -197,6 +197,78 @@ input:focus-visible,
   overflow: auto;
 }
 
+.import-description {
+  min-height: 0;
+}
+
+.import-description code {
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+.vl-label {
+  display: block;
+  font-weight: 800;
+  margin: 12px 0 8px;
+}
+
+.vl-textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #0f172a;
+  color: var(--text);
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.vl-textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.16);
+}
+
+.import-error {
+  min-height: 0;
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.import-error:empty {
+  display: none;
+}
+
+.vega-host {
+  display: block;
+  position: relative;
+  padding: 14px;
+  align-items: stretch;
+}
+
+#vega-chart {
+  width: 100%;
+}
+
+#vega-chart canvas,
+#vega-chart svg {
+  max-width: 100%;
+}
+
+.vega-cursor {
+  position: absolute;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.85;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.28);
+  border-radius: 2px;
+}
+
 @media (max-width: 980px) {
   .mapping-grid {
     grid-template-columns: 1fr;

@@ -10,8 +10,13 @@ import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from '../audio/inst
 
 const CHORD_NAMES = ['major', 'major add4', 'suspended stack', 'sus2', 'minor seventh', 'major seventh'];
 
+// Default tone lengths per articulation when no duration channel is mapped:
+// bars are struck (staccato), lines sustain toward the next point (legato),
+// scatter points are short blips. Per the grammar's mark mappings.
+const ARTICULATION_DURATIONS = { staccato: 0.28, legato: 0.5, blip: 0.14 };
+
 export function compileEncodedPoints(spec) {
-  const rows = orderRows(spec.data.values, spec.encoding.time?.field);
+  const rows = orderRows(spec.data.values, spec.encoding.time?.field, spec.encoding.time?.type);
   const fields = spec.data.fields;
   const dataset = { fields };
   const encoding = spec.encoding;
@@ -45,7 +50,8 @@ export function compileEncodedPoints(spec) {
     note('pitch', row[encoding.pitch?.field], midi);
 
     const durationNorm = quantNormalize('duration', row);
-    const duration = durationNorm === null ? 0.28 : 0.16 + durationNorm * 0.48;
+    const defaultDuration = ARTICULATION_DURATIONS[spec.tone?.articulation] ?? 0.28;
+    const duration = durationNorm === null ? defaultDuration : 0.16 + durationNorm * 0.48;
     note('duration', row[encoding.duration?.field], Number(duration.toFixed(3)));
 
     const volumeNorm = quantNormalize('volume', row);
