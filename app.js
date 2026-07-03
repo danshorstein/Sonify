@@ -5,14 +5,19 @@ import { presets } from './src/spec/defaultMappings.js';
 import { buildSpec } from './src/spec/buildSpec.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
-import { ensureAudioContext, now, schedulePoint, stopAll } from './src/audio/player.js';
+import { ensureAudioContext, now, schedulePoint, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
+import { speak, stopSpeech } from './src/audio/speech.js';
+import { bindExplorer, CONTROLS } from './src/interaction/navigation.js';
 
 const state = {
   dataset: datasets[0],
   mappings: { ...presets[datasets[0].id] },
   spec: null,
   points: [],
-  currentIndex: 0
+  currentIndex: 0,
+  anchorIndex: null,
+  vizXs: [],
+  lastScrubAudioAt: 0
 };
 
 const datasetOptions = document.getElementById('dataset-options');
@@ -33,6 +38,15 @@ const pointPosition = document.getElementById('point-position');
 const prevPointButton = document.getElementById('prev-point');
 const nextPointButton = document.getElementById('next-point');
 const hearPointButton = document.getElementById('hear-point');
+const speakPointButton = document.getElementById('speak-point');
+const anchorPointButton = document.getElementById('anchor-point');
+const comparePointButton = document.getElementById('compare-point');
+const anchorStatus = document.getElementById('anchor-status');
+const announcer = document.getElementById('announcer');
+const helpButton = document.getElementById('help-button');
+const helpOverlay = document.getElementById('help-overlay');
+const helpTableBody = document.querySelector('#help-table tbody');
+const closeHelpButton = document.getElementById('close-help');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -40,43 +54,37 @@ dataTable.className = 'data-table-shell';
 const explanation = document.createElement('div');
 explanation.className = 'mapping-explanation';
 
+let helpReturnFocus = null;
+
 function init() {
   renderDatasetButtons();
   renderFieldMappingControls();
   insertAdditionalPanels();
+  renderHelpTable();
   renderAll();
 
-  playButton.addEventListener('click', () => {
-    stopAll();
-    ensureAudioContext();
-    playCombinedMapping();
-  });
-
-  stopButton.addEventListener('click', stopAll);
+  playButton.addEventListener('click', playCombinedMapping);
+  stopButton.addEventListener('click', stopEverything);
 
   tempoSlider.addEventListener('input', () => {
-    tempoValue.textContent = `${Number(tempoSlider.value).toFixed(1)}x`;
+    tempoValue.textContent = `${tempo().toFixed(1)}x`;
   });
 
   prevPointButton.addEventListener('click', () => moveToIndex(state.currentIndex - 1));
   nextPointButton.addEventListener('click', () => moveToIndex(state.currentIndex + 1));
-  hearPointButton.addEventListener('click', () => {
-    const point = state.points[state.currentIndex];
-    if (!point) return;
-    stopAll();
-    ensureAudioContext();
-    schedulePoint(point, { start: now() + 0.05, tempo: Number(tempoSlider.value) });
-  });
+  hearPointButton.addEventListener('click', replayCurrentPoint);
+  speakPointButton.addEventListener('click', speakCurrentPoint);
+  anchorPointButton.addEventListener('click', setAnchor);
+  comparePointButton.addEventListener('click', compareWithAnchor);
 
   copySpecButton.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(specText());
       copySpecButton.textContent = 'Copied!';
-      setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
     } catch (error) {
       copySpecButton.textContent = 'Copy failed';
-      setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
     }
+    setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
   });
 
   downloadSpecButton.addEventListener('click', () => {
@@ -88,28 +96,221 @@ function init() {
     link.click();
     URL.revokeObjectURL(url);
   });
+
+  helpButton.addEventListener('click', openHelp);
+  closeHelpButton.addEventListener('click', closeHelp);
+  helpOverlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeHelp();
+    }
+  });
+  helpOverlay.addEventListener('click', (event) => {
+    if (event.target === helpOverlay) closeHelp();
+  });
+
+  bindExplorer(visualization, {
+    onStep: (delta) => moveToIndex(state.currentIndex + delta),
+    onHome: () => moveToIndex(0),
+    onEnd: () => moveToIndex(state.points.length - 1),
+    onScrubTo: (index) => moveToIndex(index),
+    indexFromX: indexFromClientX,
+    onReplay: replayCurrentPoint,
+    onStop: stopEverything,
+    onAnchor: setAnchor,
+    onCompare: compareWithAnchor,
+    onMax: () => jumpToExtreme('max'),
+    onMin: () => jumpToExtreme('min'),
+    onSpeak: speakCurrentPoint,
+    onHelp: openHelp
+  });
+}
+
+function tempo() {
+  return Number(tempoSlider.value);
 }
 
 function specText() {
-  // data.values is bulky in the viewer but essential for a shareable spec.
   return JSON.stringify(state.spec, null, 2);
 }
 
-function moveToIndex(index) {
+function announce(text) {
+  announcer.textContent = '';
+  // Re-set on the next tick so repeated identical announcements are re-read.
+  requestAnimationFrame(() => { announcer.textContent = text; });
+}
+
+function currentPoint() {
+  return state.points[state.currentIndex] || null;
+}
+
+function pitchFieldInfo() {
+  const fieldKey = state.mappings.pitch;
+  if (!fieldKey) return null;
+  return { key: fieldKey, label: getField(state.dataset, fieldKey)?.label || fieldKey };
+}
+
+function pointSummary(point) {
+  const pitch = pitchFieldInfo();
+  const parts = [`${point.index + 1} of ${state.points.length}: ${point.position.label}.`];
+  if (pitch) parts.push(`${pitch.label} ${point.row[pitch.key]}.`);
+  return parts.join(' ');
+}
+
+function moveToIndex(index, { scrubAudio = true } = {}) {
+  if (!state.points.length) return;
   const clamped = Math.max(0, Math.min(state.points.length - 1, index));
   if (clamped === state.currentIndex) return;
   state.currentIndex = clamped;
+
   renderPointInspector();
+  updateCursor();
+  const point = currentPoint();
+  announce(pointSummary(point));
+
+  if (scrubAudio) {
+    const throttleMs = state.spec?.interaction?.scrub?.throttleMs ?? 80;
+    const timestamp = performance.now();
+    if (timestamp - state.lastScrubAudioAt >= throttleMs) {
+      state.lastScrubAudioAt = timestamp;
+      renderPoint(point, { mode: 'scrub', tempo: tempo() });
+    }
+  }
+}
+
+function replayCurrentPoint() {
+  const point = currentPoint();
+  if (!point) return;
+  stopSpeech();
+  renderPoint(point, { mode: 'full', tempo: tempo() });
+  announce(`Replayed ${point.position.label}.`);
+}
+
+function speakCurrentPoint() {
+  const point = currentPoint();
+  if (!point) return;
+  const details = Object.entries(point.explanation)
+    .filter(([channel]) => channel !== 'pitch')
+    .map(([, detail]) => {
+      const label = getField(state.dataset, detail.field)?.label || detail.field;
+      return `${label} ${detail.raw}`;
+    });
+  const seen = new Set();
+  const unique = details.filter((detail) => {
+    if (seen.has(detail)) return false;
+    seen.add(detail);
+    return true;
+  });
+  speak(`${pointSummary(point)} ${unique.join('. ')}.`);
+}
+
+function setAnchor() {
+  const point = currentPoint();
+  if (!point) return;
+  state.anchorIndex = state.currentIndex;
+  renderAnchorStatus();
+  announce(`Anchored ${point.position.label}.`);
+}
+
+function compareWithAnchor() {
+  const point = currentPoint();
+  if (!point) return;
+  if (state.anchorIndex === null || !state.points[state.anchorIndex]) {
+    announce('No anchor set. Press A on a point first.');
+    speak('No anchor set. Press A on a point first.');
+    return;
+  }
+
+  const anchorPoint = state.points[state.anchorIndex];
+  stopSpeech();
+  const totalSeconds = renderComparison(anchorPoint, point, { tempo: tempo() });
+
+  const pitch = pitchFieldInfo();
+  let deltaText = '';
+  if (pitch) {
+    const from = Number(anchorPoint.row[pitch.key]);
+    const to = Number(point.row[pitch.key]);
+    if (Number.isFinite(from) && Number.isFinite(to)) {
+      if (from === to) {
+        deltaText = `${pitch.label} unchanged at ${to}.`;
+      } else if (from !== 0) {
+        const pct = ((to - from) / Math.abs(from)) * 100;
+        deltaText = `${pitch.label} ${pct > 0 ? 'up' : 'down'} ${Math.abs(pct).toFixed(1)} percent.`;
+      } else {
+        deltaText = `${pitch.label} changed from ${from} to ${to}.`;
+      }
+    }
+  }
+
+  const summary = `Compared anchor ${anchorPoint.position.label} with ${point.position.label}. ${deltaText}`;
+  announce(summary);
+  setTimeout(() => speak(summary, { interrupt: false }), Math.max(0, totalSeconds * 1000));
+}
+
+function jumpToExtreme(kind) {
+  const pitch = pitchFieldInfo();
+  if (!pitch || !state.points.length) {
+    announce('No pitch field mapped.');
+    return;
+  }
+
+  let bestIndex = 0;
+  state.points.forEach((point, index) => {
+    const value = Number(point.row[pitch.key]);
+    const best = Number(state.points[bestIndex].row[pitch.key]);
+    if (kind === 'max' ? value > best : value < best) bestIndex = index;
+  });
+
+  state.currentIndex = bestIndex;
+  renderPointInspector();
+  updateCursor();
+  const point = currentPoint();
+  renderPoint(point, { mode: 'full', tempo: tempo() });
+  const text = `${kind === 'max' ? 'Maximum' : 'Minimum'} ${pitch.label}: ${point.row[pitch.key]}, at ${point.position.label}.`;
+  announce(text);
+  speak(text);
+}
+
+function stopEverything() {
+  stopAll();
+  stopSpeech();
+  announce('Stopped.');
+}
+
+function openHelp() {
+  helpReturnFocus = document.activeElement;
+  helpOverlay.hidden = false;
+  closeHelpButton.focus();
+}
+
+function closeHelp() {
+  helpOverlay.hidden = true;
+  if (helpReturnFocus && typeof helpReturnFocus.focus === 'function') helpReturnFocus.focus();
+  helpReturnFocus = null;
+}
+
+function renderHelpTable() {
+  helpTableBody.innerHTML = CONTROLS.map((control) => `
+    <tr><td><kbd>${control.keys}</kbd></td><td>${control.action}</td></tr>
+  `).join('');
+}
+
+function renderAnchorStatus() {
+  const anchorPoint = state.anchorIndex !== null ? state.points[state.anchorIndex] : null;
+  anchorStatus.textContent = anchorPoint
+    ? `Anchor: ${anchorPoint.position.label} (point ${anchorPoint.index + 1}). Press C on any point to compare.`
+    : 'No anchor set. Press A on a point to bookmark it for comparison.';
 }
 
 function recompile() {
-  state.spec = buildSpec(state.dataset, state.mappings, { tempo: Number(tempoSlider.value) });
+  state.spec = buildSpec(state.dataset, state.mappings, { tempo: tempo() });
   const validation = validateSpec(state.spec);
   if (!validation.valid) {
     console.warn('Sonify spec validation errors:', validation.errors);
   }
   state.points = compileEncodedPoints(state.spec);
   state.currentIndex = Math.max(0, Math.min(state.points.length - 1, state.currentIndex));
+  if (state.anchorIndex !== null && state.anchorIndex >= state.points.length) state.anchorIndex = null;
 }
 
 function insertAdditionalPanels() {
@@ -140,6 +341,7 @@ function renderDatasetButtons() {
       state.dataset = dataset;
       state.mappings = { ...presets[dataset.id] };
       state.currentIndex = 0;
+      state.anchorIndex = null;
       renderAll();
     });
     datasetOptions.appendChild(button);
@@ -195,11 +397,12 @@ function renderAll(options = {}) {
   renderExplanation();
   renderSpecViewer();
   renderPointInspector();
+  renderAnchorStatus();
 }
 
 function renderVisualization() {
   visualization.innerHTML = '';
-  visualization.className = 'viz grammar-viz';
+  visualization.classList.add('grammar-viz');
 
   const pitchField = state.mappings.pitch || state.dataset.fields.find((field) => field.type === 'quantitative')?.key;
   const colorField = state.mappings.timbre || state.mappings.chord || state.mappings.motif;
@@ -217,10 +420,12 @@ function renderVisualization() {
     return { x, y, row: point.row };
   });
 
-  const circles = points.map(({ x, y, row }) => {
+  state.vizXs = points.map((point) => point.x);
+
+  const circles = points.map(({ x, y, row }, index) => {
     const category = colorField ? row[colorField] : '';
     const hue = colorField ? (categoryIndex(state.dataset.rows, colorField, category) * 72) % 360 : 195;
-    return `<circle cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
+    return `<circle class="viz-point" data-index="${index}" cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
   const line = points.map((point) => `${point.x},${point.y}`).join(' ');
@@ -231,15 +436,54 @@ function renderVisualization() {
   }).join('');
 
   visualization.innerHTML = `
-    <svg class="line-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Visual preview using selected pitch and sequence fields">
+    <svg class="line-svg" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
+      <line id="viz-cursor" class="viz-cursor" x1="0" y1="${pad}" x2="0" y2="${height - pad}" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.9" />
       ${circles}
       ${labels}
       <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(state.dataset, pitchField)?.label || 'none'}</text>
     </svg>
   `;
+
+  updateCursor();
+}
+
+function updateCursor() {
+  const svg = visualization.querySelector('svg');
+  if (!svg) return;
+
+  const cursor = svg.querySelector('#viz-cursor');
+  const x = state.vizXs[state.currentIndex];
+  if (cursor && x !== undefined) {
+    cursor.setAttribute('x1', x);
+    cursor.setAttribute('x2', x);
+  }
+
+  svg.querySelectorAll('.viz-point').forEach((circle) => {
+    circle.classList.toggle('current', Number(circle.dataset.index) === state.currentIndex);
+  });
+}
+
+function indexFromClientX(clientX) {
+  const svg = visualization.querySelector('svg');
+  if (!svg || !state.vizXs.length) return null;
+
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width) return null;
+  const x = ((clientX - rect.left) / rect.width) * 720;
+
+  let best = 0;
+  let bestDistance = Infinity;
+  state.vizXs.forEach((candidate, index) => {
+    const distance = Math.abs(candidate - x);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = index;
+    }
+  });
+  return best;
 }
 
 function renderDataTable() {
@@ -280,7 +524,7 @@ function renderSpecViewer() {
 }
 
 function renderPointInspector() {
-  const point = state.points[state.currentIndex];
+  const point = currentPoint();
   if (!point) {
     pointInspector.innerHTML = '<p class="description">No encoded points.</p>';
     pointPosition.textContent = '';
@@ -317,13 +561,16 @@ function rowLabel(row) {
 }
 
 function playCombinedMapping() {
-  const tempo = Number(tempoSlider.value);
-  const step = 0.72 / tempo;
+  stopAll();
+  ensureAudioContext();
+
+  const step = 0.72 / tempo();
   const startBase = now() + 0.08;
 
   state.points.forEach((point, index) => {
-    schedulePoint(point, { start: startBase + index * step, tempo });
+    schedulePoint(point, { start: startBase + index * step, tempo: tempo() });
   });
+  announce('Playing.');
 }
 
 init();

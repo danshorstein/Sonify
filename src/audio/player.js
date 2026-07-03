@@ -93,3 +93,38 @@ export function schedulePoint(point, { start, tempo = 1 } = {}) {
 
   return audio.motifLeadIn / tempo;
 }
+
+// Total footprint of one scheduled point in seconds, for sequencing.
+export function pointSpanSeconds(point, tempo = 1) {
+  const audio = point.audio;
+  return (audio.motifLeadIn + 0.06 + Math.max(audio.duration, audio.statusState ? 0.42 : 0)) / tempo;
+}
+
+// Interactive render of a single point. Scrub mode is deliberately compact
+// (main value tone only) so fast movement stays legible; full mode replays
+// every layer, like one step of timeline playback.
+export function renderPoint(point, { mode = 'full', tempo = 1 } = {}) {
+  ensureAudioContext();
+  stopAll();
+
+  if (mode === 'scrub') {
+    const audio = point.audio;
+    playTone(audio.pitchHz, now() + 0.02, Math.min(audio.duration, 0.22) / tempo, audio.waveform, audio.gain, audio.pan);
+    return 0;
+  }
+
+  return schedulePoint(point, { start: now() + 0.05, tempo });
+}
+
+// The auditory saccade: anchor point, short gap, current point.
+// Returns the total duration in seconds so callers can time follow-up speech.
+export function renderComparison(anchorPoint, currentPoint, { tempo = 1, gapSeconds = 0.35 } = {}) {
+  ensureAudioContext();
+  stopAll();
+
+  const start = now() + 0.05;
+  schedulePoint(anchorPoint, { start, tempo });
+  const currentStart = start + pointSpanSeconds(anchorPoint, tempo) + gapSeconds;
+  schedulePoint(currentPoint, { start: currentStart, tempo });
+  return currentStart + pointSpanSeconds(currentPoint, tempo) - now();
+}
