@@ -6,8 +6,9 @@ import { buildSpec } from './src/spec/buildSpec.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
 import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
-import { ensureAudioContext, playQueue, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
-import { speak, stopSpeech } from './src/audio/speech.js';
+import { compileLegendQueue } from './src/compiler/compileLegendQueue.js';
+import { ensureAudioContext, playQueue, playEvents, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
+import { speak, speakAsync, stopSpeech } from './src/audio/speech.js';
 import { bindExplorer, CONTROLS } from './src/interaction/navigation.js';
 import { vegaLiteToSonify } from './src/spec/vegaLiteAdapter.js';
 import { exampleSpecs } from './src/spec/examples.js';
@@ -71,6 +72,7 @@ const explanation = document.createElement('div');
 explanation.className = 'mapping-explanation';
 
 let helpReturnFocus = null;
+let legendToken = 0;
 
 function init() {
   renderDatasetButtons();
@@ -81,6 +83,7 @@ function init() {
 
   playButton.addEventListener('click', playFromCurrent);
   stopButton.addEventListener('click', stopEverything);
+  document.getElementById('legend-button').addEventListener('click', playLegend);
 
   tempoSlider.addEventListener('input', () => {
     tempoValue.textContent = `${tempo().toFixed(1)}x`;
@@ -162,6 +165,7 @@ function init() {
     onMax: () => jumpToExtreme('max'),
     onMin: () => jumpToExtreme('min'),
     onSpeak: speakCurrentPoint,
+    onLegend: playLegend,
     onHelp: openHelp
   });
 }
@@ -324,9 +328,33 @@ function jumpToExtreme(kind) {
 }
 
 function stopEverything() {
+  legendToken += 1;
   stopAll();
   stopSpeech();
   announce('Stopped.');
+}
+
+async function playLegend() {
+  if (!state.spec) return;
+  stopAll();
+  stopSpeech();
+  ensureAudioContext();
+
+  const token = ++legendToken;
+  const queue = compileLegendQueue(state.spec, state.points);
+  announce('Playing legend.');
+
+  for (const item of queue) {
+    if (token !== legendToken) return;
+    if (item.kind === 'speech') {
+      await speakAsync(item.text);
+    } else if (item.kind === 'audio') {
+      playEvents(item.events);
+      await new Promise((resolve) => setTimeout(resolve, item.span * 1000 + 150));
+    }
+  }
+
+  if (token === legendToken) announce('Legend finished.');
 }
 
 function extendRegion(direction) {

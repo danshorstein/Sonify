@@ -18,3 +18,17 @@ export function speak(text, { interrupt = true, rate = 1.05 } = {}) {
 export function stopSpeech() {
   if (speechAvailable()) window.speechSynthesis.cancel();
 }
+
+// Resolves when the utterance finishes (or immediately if speech is
+// unavailable), so callers can sequence speech with example tones.
+export function speakAsync(text, options = {}) {
+  return new Promise((resolve) => {
+    const utterance = speak(text, { interrupt: false, ...options });
+    if (!utterance) {
+      resolve();
+      return;
+    }
+    utterance.addEventListener('end', resolve);
+    utterance.addEventListener('error', resolve);
+  });
+}

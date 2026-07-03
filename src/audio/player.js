@@ -121,6 +121,16 @@ export function renderPoint(point, { mode = 'full', tempo = 1 } = {}) {
   return schedulePoint(point, { start: now() + 0.05, tempo });
 }
 
+// Plays a batch of legend example events relative to now.
+export function playEvents(events) {
+  ensureAudioContext();
+  const base = now() + 0.05;
+  events.forEach((event) => {
+    const freq = event.hz ?? midiToFrequency(event.midi);
+    playTone(freq, base + (event.offset || 0), event.duration || 0.4, event.wave || 'sine', event.gain ?? 0.14, event.pan || 0);
+  });
+}
+
 // Schedules a compiled audio queue and tracks progress so the UI cursor can
 // follow along. onStep receives each point's dataset index as it sounds;
 // onDone fires once at the end. stopAll() cancels both audio and tracking.
