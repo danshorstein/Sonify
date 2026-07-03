@@ -1,5 +1,72 @@
 # Sonify Engineering Plan: Erie-Inspired Sonification Workbench
 
+## Strategic Amendments (2026-07)
+
+These amendments override the original plan where they conflict.
+
+### Amendment 1 — Vega-Lite translation is first-class, not last
+
+Chart→audio translation is the product's core differentiator: the world is full
+of existing charts blind users cannot access, and nobody maintains an OSS
+Vega-Lite→sonification tool. The adapter is therefore **Phase 5**, immediately
+after queue playback — not Phase 9. The old Phases 5–8 (legends, scale
+controls, composition, transforms) shift to Phases 6–9.
+
+Adapter MVP scope: paste/import Vega-Lite JSON (inline `data.values` only);
+mark types `bar`, `line` (single and color-grouped multi-series), and
+`point`/`circle` (scatter); map x→time, y→pitch, color→timbre+pan,
+size→loudness per the mapping table below. Mappings are **suggested defaults**
+the user can override in the existing mapping UI. The adapter compiles into the
+same Sonify spec → encoded points pipeline as the demo datasets. An Altair
+chart is just `chart.to_dict()`, so Vega-Lite JSON support IS Altair support.
+
+### Amendment 2 — One app, one compiler; interactive is the artifact
+
+The root grammar lab is the canonical app and the only one under development.
+The old FastAPI backend (static WAV compiler) and React frontend live in
+`legacy/` — a WAV file is the PNG of audio: sequential, fixed-pace,
+un-explorable, while our scrub interaction is the auditory equivalent of
+vision's random access. The backend's Vega-Lite extraction logic is ported
+into `src/spec/vegaLiteAdapter.js`. WAV export returns later as an export
+button rendering the compiled queue via `OfflineAudioContext` — never as the
+primary output.
+
+### Amendment 3 — Extended interaction grammar (Phase 3 scope)
+
+Beyond scrub/keyboard:
+
+- **Comparison anchors**: `A` bookmarks the current point; `C` plays
+  anchor-then-current back-to-back with a short gap, plus optional spoken
+  delta. Ears compare sequentially what eyes compare at a glance — the
+  auditory saccade.
+- **Jump-to-extremes**: `M` jumps to the max of the pitch-mapped field, `N` to
+  the min; plays the point and speaks the value on demand.
+- **Region zoom** (may land in Phase 4): select a time region (Shift+arrows or
+  drag on the visual) and dilate it — re-render the queue for that region over
+  a longer duration. Re-rendering from encoded points means no pitch artifact.
+  This is the audio magnifying glass.
+- All controls documented in a keyboard help overlay (`?` key) that is itself
+  screen-reader accessible.
+
+### Amendment 4 — Synchronized dual rendering (lands with the adapter)
+
+When a Vega-Lite spec is imported, render the actual chart with vega-embed
+(CDN script tag, no build step) alongside the audio controls, replacing the
+hand-rolled canvas preview for imported charts. Bidirectional sync: scrubbing
+audio moves a visible cursor overlay on the chart; clicking/hovering a mark
+jumps the audio to that point. A sighted analyst and a blind analyst must be
+able to explore the SAME artifact together (see MAIDR; Seo et al., CHI 2024).
+
+### Amendment 5 — Accessibility acceptance criteria apply to EVERY phase
+
+No autoplay, ever. Every control keyboard-reachable with visible focus. ARIA
+roles/labels on all interactive elements; state changes announced via a polite
+`aria-live` region (current point label, play/stop state). The app must be
+operable with the visual preview hidden. All speech via the Web Speech API
+(`speechSynthesis`); scrub speech is throttled so stale utterances never queue.
+
+---
+
 ## Purpose
 
 This document captures the proposed engineering direction for evolving Sonify from a promising prototype into a more durable sonification workbench.
@@ -178,6 +245,10 @@ The plan should cover at least the practical base level of Erie-style audio enco
       renderVisualization.js
       renderInspector.js
       renderQueueInspector.js
+
+  legacy/
+    backend/                      # retired FastAPI static-WAV compiler (Amendment 2)
+    frontend/                     # retired React/Vite demo client (Amendment 2)
 ```
 
 Initial implementation can remain vanilla JavaScript. No need to move to React or TypeScript yet.
@@ -619,9 +690,9 @@ MVP transforms:
 
 ## Altair / Vega-Lite Integration Path
 
-Design for this, but do not implement first.
+Amended (see Amendment 1): the adapter is Phase 5, not a future concern.
 
-Future adapter:
+Adapter:
 
 ```js
 vegaLiteToSonifySpec(vegaSpec, options)
@@ -722,6 +793,10 @@ Tasks:
 4. Add scroll wheel navigation.
 5. Add visual cursor.
 6. Add point detail panel.
+7. Add comparison anchors (`A` to anchor, `C` to compare with spoken delta) — Amendment 3.
+8. Add jump-to-extremes (`M` max, `N` min of the pitch-mapped field) — Amendment 3.
+9. Add a screen-reader-accessible keyboard help overlay on `?` — Amendment 3.
+10. Add speech via `src/audio/speech.js` and a polite `aria-live` announcer — Amendment 5.
 
 Acceptance criteria:
 
@@ -729,6 +804,8 @@ Acceptance criteria:
 - User can hear the selected point on demand.
 - Space replays current point.
 - Visual cursor and data detail stay in sync.
+- Anchor/compare and extremes jumps work without a mouse.
+- All controls appear in the help overlay.
 
 ### Phase 4: Timeline queue playback
 
@@ -741,13 +818,36 @@ Tasks:
 3. Update Play button to play from current index.
 4. Add Stop behavior that handles queued and interactive audio.
 
+Additional task (Amendment 3): region zoom — select a time region and re-render
+the queue for that region over a longer duration (the audio magnifying glass).
+
 Acceptance criteria:
 
 - Play works from the beginning or current point.
 - Stop works reliably.
 - Timeline playback and interactive rendering use the same encoded values.
 
-### Phase 5: Auditory legends
+### Phase 5: Vega-Lite/Altair adapter + synchronized dual rendering
+
+Goal: make existing charts audible (Amendments 1 and 4).
+
+Tasks:
+
+1. Add Vega-Lite JSON paste/import (inline `data.values` only).
+2. Support mark types bar, line (single + color-grouped multi-series), and point/circle.
+3. Suggest Sonify mappings (x→time, y→pitch, color→timbre+pan, size→loudness); user can override in the mapping UI.
+4. Compile to the same Sonify spec → encoded points pipeline as demo datasets.
+5. Render the imported chart with vega-embed (CDN) with a synchronized cursor overlay; clicking a mark jumps the audio.
+6. Bundle three example specs: bar, multi-series line, scatter.
+
+Acceptance criteria:
+
+- A simple Altair-generated Vega-Lite spec imports (`chart.to_dict()` output).
+- x, y, color, and size become suggested audio mappings the user can override.
+- Scrubbing moves a visible cursor on the real rendered chart; clicking a mark moves the audio.
+- User can play the resulting sonification through the standard pipeline.
+
+### Phase 6: Auditory legends
 
 Goal: make the sonification understandable.
 
@@ -764,7 +864,7 @@ Acceptance criteria:
 - User can hear category timbres/motifs.
 - Speech explains mappings.
 
-### Phase 6: Scale controls
+### Phase 7: Scale controls
 
 Goal: let users shape mappings.
 
@@ -783,7 +883,7 @@ Acceptance criteria:
 - User can make pitch range narrower/wider.
 - Inspector shows raw and scaled values.
 
-### Phase 7: Composition modes
+### Phase 8: Composition modes
 
 Goal: add Erie-style structure.
 
@@ -801,7 +901,7 @@ Acceptance criteria:
 - Speech announces groups.
 - Overlay mode works without breaking stop/play.
 
-### Phase 8: Transform layer
+### Phase 9: Transform layer
 
 Goal: support analytical workflows.
 
@@ -819,25 +919,6 @@ Acceptance criteria:
 - User can sort playback order.
 - User can aggregate by category.
 - Sonification uses transformed data.
-
-### Phase 9: Altair/Vega-Lite adapter
-
-Goal: support declarative chart/data workflows.
-
-Tasks:
-
-1. Add Vega-Lite JSON paste/import.
-2. Parse data, transform, and encoding.
-3. Suggest Sonify mappings.
-4. Allow override.
-5. Compile to Sonify spec.
-
-Acceptance criteria:
-
-- A simple Altair-generated Vega-Lite spec imports.
-- x, y, color, and size become suggested audio mappings.
-- Transforms are preserved where possible.
-- User can play the resulting sonification.
 
 ---
 
@@ -887,7 +968,7 @@ dataset + field mappings
 | Use Erie directly now? | No, use as reference first |
 | Keep vanilla JS or move to React? | Keep vanilla JS for this refactor |
 | Add TypeScript now? | Not yet |
-| Make Altair/Vega-Lite first-class now? | Design for it, implement later |
+| Make Altair/Vega-Lite first-class now? | Yes — Phase 5, per Amendment 1 |
 | First feature after modular refactor? | Interactive scrubbing + point inspector |
 | Next feature after that? | Auditory legend + scale controls |
 | Main architecture | Sonify spec -> encoded points -> queue/player |

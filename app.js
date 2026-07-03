@@ -1,116 +1,37 @@
-const datasets = [
-  {
-    id: 'agency-spending',
-    name: 'Federal agency spending by fiscal year',
-    description: 'A richer public-finance style dataset with time, agency, mission category, spending, growth, risk, confidence, and transaction volume.',
-    fields: [
-      { key: 'fiscalYear', label: 'Fiscal Year', type: 'temporal' },
-      { key: 'agency', label: 'Agency', type: 'nominal' },
-      { key: 'mission', label: 'Mission', type: 'nominal' },
-      { key: 'spendBillions', label: 'Spend ($B)', type: 'quantitative' },
-      { key: 'growthPct', label: 'YoY Growth %', type: 'quantitative' },
-      { key: 'riskScore', label: 'Risk Score', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' },
-      { key: 'transactionsK', label: 'Transactions (K)', type: 'quantitative' }
-    ],
-    rows: [
-      { fiscalYear: 2021, agency: 'Defense', mission: 'Security', spendBillions: 705, growthPct: 2.9, riskScore: 61, confidence: 84, transactionsK: 980 },
-      { fiscalYear: 2021, agency: 'Health', mission: 'Care', spendBillions: 1310, growthPct: 8.7, riskScore: 74, confidence: 76, transactionsK: 1220 },
-      { fiscalYear: 2021, agency: 'Education', mission: 'Learning', spendBillions: 182, growthPct: 5.1, riskScore: 42, confidence: 88, transactionsK: 410 },
-      { fiscalYear: 2021, agency: 'Energy', mission: 'Infrastructure', spendBillions: 49, growthPct: 3.3, riskScore: 37, confidence: 91, transactionsK: 170 },
-      { fiscalYear: 2022, agency: 'Defense', mission: 'Security', spendBillions: 742, growthPct: 5.2, riskScore: 64, confidence: 82, transactionsK: 1010 },
-      { fiscalYear: 2022, agency: 'Health', mission: 'Care', spendBillions: 1398, growthPct: 6.7, riskScore: 78, confidence: 73, transactionsK: 1285 },
-      { fiscalYear: 2022, agency: 'Education', mission: 'Learning', spendBillions: 205, growthPct: 12.6, riskScore: 48, confidence: 85, transactionsK: 450 },
-      { fiscalYear: 2022, agency: 'Energy', mission: 'Infrastructure', spendBillions: 57, growthPct: 16.3, riskScore: 44, confidence: 79, transactionsK: 185 },
-      { fiscalYear: 2023, agency: 'Defense', mission: 'Security', spendBillions: 781, growthPct: 5.3, riskScore: 66, confidence: 81, transactionsK: 1045 },
-      { fiscalYear: 2023, agency: 'Health', mission: 'Care', spendBillions: 1512, growthPct: 8.2, riskScore: 83, confidence: 69, transactionsK: 1375 },
-      { fiscalYear: 2023, agency: 'Education', mission: 'Learning', spendBillions: 198, growthPct: -3.4, riskScore: 39, confidence: 90, transactionsK: 430 },
-      { fiscalYear: 2023, agency: 'Energy', mission: 'Infrastructure', spendBillions: 69, growthPct: 21.1, riskScore: 52, confidence: 72, transactionsK: 210 }
-    ]
-  },
-  {
-    id: 'ai-monitoring',
-    name: 'AI model monitoring runs',
-    description: 'A model observability dataset: run order, model, task family, accuracy, hallucination risk, latency, cost, confidence, and volume.',
-    fields: [
-      { key: 'run', label: 'Run', type: 'temporal' },
-      { key: 'model', label: 'Model', type: 'nominal' },
-      { key: 'task', label: 'Task', type: 'nominal' },
-      { key: 'accuracy', label: 'Accuracy %', type: 'quantitative' },
-      { key: 'hallucinationRisk', label: 'Hallucination Risk', type: 'quantitative' },
-      { key: 'latencyMs', label: 'Latency ms', type: 'quantitative' },
-      { key: 'costUsd', label: 'Cost $', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' },
-      { key: 'volume', label: 'Volume', type: 'quantitative' }
-    ],
-    rows: [
-      { run: 1, model: 'Orion', task: 'Extract', accuracy: 86, hallucinationRisk: 28, latencyMs: 880, costUsd: 12, confidence: 81, volume: 130 },
-      { run: 2, model: 'Orion', task: 'Reason', accuracy: 82, hallucinationRisk: 41, latencyMs: 1240, costUsd: 18, confidence: 74, volume: 118 },
-      { run: 3, model: 'Nova', task: 'Extract', accuracy: 91, hallucinationRisk: 19, latencyMs: 710, costUsd: 9, confidence: 88, volume: 145 },
-      { run: 4, model: 'Nova', task: 'Reason', accuracy: 87, hallucinationRisk: 33, latencyMs: 980, costUsd: 14, confidence: 80, volume: 136 },
-      { run: 5, model: 'Lyra', task: 'Extract', accuracy: 79, hallucinationRisk: 52, latencyMs: 650, costUsd: 7, confidence: 68, volume: 160 },
-      { run: 6, model: 'Lyra', task: 'Reason', accuracy: 74, hallucinationRisk: 63, latencyMs: 820, costUsd: 10, confidence: 59, volume: 152 },
-      { run: 7, model: 'Orion', task: 'Classify', accuracy: 89, hallucinationRisk: 23, latencyMs: 930, costUsd: 11, confidence: 84, volume: 141 },
-      { run: 8, model: 'Nova', task: 'Classify', accuracy: 94, hallucinationRisk: 15, latencyMs: 760, costUsd: 10, confidence: 91, volume: 148 }
-    ]
-  },
-  {
-    id: 'startup-metrics',
-    name: 'Startup operating metrics',
-    description: 'A SaaS-style dataset with month, product line, revenue, churn, support load, NPS, risk, and confidence.',
-    fields: [
-      { key: 'month', label: 'Month', type: 'temporal' },
-      { key: 'product', label: 'Product', type: 'nominal' },
-      { key: 'market', label: 'Market', type: 'nominal' },
-      { key: 'mrr', label: 'MRR ($K)', type: 'quantitative' },
-      { key: 'churnPct', label: 'Churn %', type: 'quantitative' },
-      { key: 'supportTickets', label: 'Support Tickets', type: 'quantitative' },
-      { key: 'nps', label: 'NPS', type: 'quantitative' },
-      { key: 'riskScore', label: 'Risk Score', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' }
-    ],
-    rows: [
-      { month: 1, product: 'Core', market: 'Enterprise', mrr: 112, churnPct: 3.2, supportTickets: 84, nps: 51, riskScore: 36, confidence: 86 },
-      { month: 2, product: 'Core', market: 'Enterprise', mrr: 119, churnPct: 3.5, supportTickets: 91, nps: 49, riskScore: 39, confidence: 84 },
-      { month: 3, product: 'Core', market: 'Enterprise', mrr: 130, churnPct: 2.9, supportTickets: 88, nps: 56, riskScore: 32, confidence: 89 },
-      { month: 4, product: 'AI Add-on', market: 'Midmarket', mrr: 38, churnPct: 6.1, supportTickets: 116, nps: 37, riskScore: 66, confidence: 72 },
-      { month: 5, product: 'AI Add-on', market: 'Midmarket', mrr: 54, churnPct: 5.4, supportTickets: 142, nps: 42, riskScore: 61, confidence: 75 },
-      { month: 6, product: 'AI Add-on', market: 'Midmarket', mrr: 73, churnPct: 4.7, supportTickets: 155, nps: 45, riskScore: 55, confidence: 77 },
-      { month: 7, product: 'Services', market: 'Public Sector', mrr: 46, churnPct: 2.1, supportTickets: 52, nps: 63, riskScore: 28, confidence: 91 },
-      { month: 8, product: 'Services', market: 'Public Sector', mrr: 51, churnPct: 2.3, supportTickets: 61, nps: 61, riskScore: 31, confidence: 89 }
-    ]
-  }
-];
+import { datasets } from './src/data/datasets.js';
+import { getField, extent, categoryIndex } from './src/data/schema.js';
+import { channelDefinitions } from './src/spec/channels.js';
+import { presets } from './src/spec/defaultMappings.js';
+import { buildSpec } from './src/spec/buildSpec.js';
+import { validateSpec } from './src/spec/validateSpec.js';
+import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
+import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
+import { compileLegendQueue } from './src/compiler/compileLegendQueue.js';
+import { ensureAudioContext, playQueue, playEvents, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
+import { speak, speakAsync, stopSpeech } from './src/audio/speech.js';
+import { bindExplorer, CONTROLS } from './src/interaction/navigation.js';
+import { vegaLiteToSonify } from './src/spec/vegaLiteAdapter.js';
+import { exampleSpecs } from './src/spec/examples.js';
 
-const channelDefinitions = [
-  { key: 'time', label: 'Time / sequence', accepted: ['temporal', 'quantitative', 'nominal'], description: 'Controls the order in which rows are heard. This is the audio equivalent of the x-axis.' },
-  { key: 'pitch', label: 'Pitch / register', accepted: ['quantitative'], description: 'Maps numeric magnitude to a bounded pentatonic pitch range.' },
-  { key: 'timbre', label: 'Timbre / waveform', accepted: ['nominal'], description: 'Maps categories to oscillator character: sine, triangle, square, or sawtooth.' },
-  { key: 'chord', label: 'Chord identity', accepted: ['nominal'], description: 'Maps categories to short chord identities over a shared tonal center.' },
-  { key: 'motif', label: 'Motif identity', accepted: ['nominal'], description: 'Maps categories to a short melodic signature before the value tone.' },
-  { key: 'duration', label: 'Duration', accepted: ['quantitative'], description: 'Maps numeric magnitude to how long the main tone lasts.' },
-  { key: 'rhythm', label: 'Rhythm density', accepted: ['quantitative'], description: 'Maps numeric magnitude to pulse density layered around the main tone.' },
-  { key: 'volume', label: 'Volume / salience', accepted: ['quantitative'], description: 'Maps numeric magnitude to loudness. Used gently because volume is a weak primary data channel.' },
-  { key: 'pan', label: 'Stereo pan', accepted: ['quantitative', 'nominal'], description: 'Maps values or categories left-to-right as a redundant separation cue.' },
-  { key: 'status', label: 'Status harmony', accepted: ['quantitative'], description: 'Maps a numeric risk/status field to stable, suspended, minor, or tense harmonic cues.' }
-];
-
-const presets = {
-  'agency-spending': {
-    time: 'fiscalYear', pitch: 'spendBillions', timbre: 'agency', chord: 'mission', motif: 'agency', duration: 'growthPct', rhythm: 'transactionsK', volume: 'confidence', pan: 'agency', status: 'riskScore'
-  },
-  'ai-monitoring': {
-    time: 'run', pitch: 'accuracy', timbre: 'model', chord: 'task', motif: 'model', duration: 'latencyMs', rhythm: 'volume', volume: 'confidence', pan: 'model', status: 'hallucinationRisk'
-  },
-  'startup-metrics': {
-    time: 'month', pitch: 'mrr', timbre: 'product', chord: 'market', motif: 'product', duration: 'churnPct', rhythm: 'supportTickets', volume: 'confidence', pan: 'product', status: 'riskScore'
-  }
+const state = {
+  dataset: datasets[0],
+  mappings: { ...presets[datasets[0].id] },
+  spec: null,
+  points: [],
+  currentIndex: 0,
+  anchorIndex: null,
+  region: null,
+  zoomed: false,
+  vizXs: [],
+  lastScrubAudioAt: 0,
+  imported: null
 };
 
-let selectedDataset = datasets[0];
-let fieldMappings = { ...presets[selectedDataset.id] };
-let audioContext = null;
-let activeNodes = [];
+// vega-embed view state for imported charts (Amendment 4 dual rendering).
+let vegaView = null;
+let vegaEmbedded = null; // which import the current view renders
+let vegaRenderToken = 0;
+let vegaPointXs = []; // canvas-relative x px per encoded point
 
 const datasetOptions = document.getElementById('dataset-options');
 const mappingOptions = document.getElementById('mapping-options');
@@ -122,6 +43,27 @@ const playButton = document.getElementById('play-button');
 const stopButton = document.getElementById('stop-button');
 const tempoSlider = document.getElementById('tempo-slider');
 const tempoValue = document.getElementById('tempo-value');
+const specJson = document.getElementById('spec-json');
+const copySpecButton = document.getElementById('copy-spec');
+const downloadSpecButton = document.getElementById('download-spec');
+const pointInspector = document.getElementById('point-inspector');
+const pointPosition = document.getElementById('point-position');
+const prevPointButton = document.getElementById('prev-point');
+const nextPointButton = document.getElementById('next-point');
+const hearPointButton = document.getElementById('hear-point');
+const speakPointButton = document.getElementById('speak-point');
+const anchorPointButton = document.getElementById('anchor-point');
+const comparePointButton = document.getElementById('compare-point');
+const anchorStatus = document.getElementById('anchor-status');
+const announcer = document.getElementById('announcer');
+const helpButton = document.getElementById('help-button');
+const exampleButtons = document.getElementById('example-buttons');
+const vlInput = document.getElementById('vl-input');
+const importButton = document.getElementById('import-vl');
+const importError = document.getElementById('import-error');
+const helpOverlay = document.getElementById('help-overlay');
+const helpTableBody = document.querySelector('#help-table tbody');
+const closeHelpButton = document.getElementById('close-help');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -129,23 +71,407 @@ dataTable.className = 'data-table-shell';
 const explanation = document.createElement('div');
 explanation.className = 'mapping-explanation';
 
+let helpReturnFocus = null;
+let legendToken = 0;
+
 function init() {
   renderDatasetButtons();
   renderFieldMappingControls();
   insertAdditionalPanels();
+  renderHelpTable();
   renderAll();
 
-  playButton.addEventListener('click', () => {
-    stopAll();
-    ensureAudioContext();
-    playCombinedMapping();
-  });
-
-  stopButton.addEventListener('click', stopAll);
+  playButton.addEventListener('click', playFromCurrent);
+  stopButton.addEventListener('click', stopEverything);
+  document.getElementById('legend-button').addEventListener('click', playLegend);
 
   tempoSlider.addEventListener('input', () => {
-    tempoValue.textContent = `${Number(tempoSlider.value).toFixed(1)}x`;
+    tempoValue.textContent = `${tempo().toFixed(1)}x`;
   });
+
+  prevPointButton.addEventListener('click', () => moveToIndex(state.currentIndex - 1));
+  nextPointButton.addEventListener('click', () => moveToIndex(state.currentIndex + 1));
+  hearPointButton.addEventListener('click', replayCurrentPoint);
+  speakPointButton.addEventListener('click', speakCurrentPoint);
+  anchorPointButton.addEventListener('click', setAnchor);
+  comparePointButton.addEventListener('click', compareWithAnchor);
+
+  copySpecButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(specText());
+      copySpecButton.textContent = 'Copied!';
+    } catch (error) {
+      copySpecButton.textContent = 'Copy failed';
+    }
+    setTimeout(() => { copySpecButton.textContent = 'Copy JSON'; }, 1200);
+  });
+
+  downloadSpecButton.addEventListener('click', () => {
+    const blob = new Blob([specText()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sonify-spec-${state.dataset.id}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+
+  exampleSpecs.forEach((example) => {
+    const button = document.createElement('button');
+    button.className = 'secondary-button';
+    button.textContent = `Load example: ${example.label}`;
+    button.addEventListener('click', () => {
+      vlInput.value = JSON.stringify(example.spec, null, 2);
+      importVegaLite();
+    });
+    exampleButtons.appendChild(button);
+  });
+
+  importButton.addEventListener('click', importVegaLite);
+
+  window.addEventListener('resize', () => {
+    if (vegaView) {
+      buildVegaPointXs();
+      updateCursor();
+    }
+  });
+
+  helpButton.addEventListener('click', openHelp);
+  closeHelpButton.addEventListener('click', closeHelp);
+  helpOverlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeHelp();
+    }
+  });
+  helpOverlay.addEventListener('click', (event) => {
+    if (event.target === helpOverlay) closeHelp();
+  });
+
+  bindExplorer(visualization, {
+    onStep: (delta) => moveToIndex(state.currentIndex + delta),
+    onHome: () => moveToIndex(0),
+    onEnd: () => moveToIndex(state.points.length - 1),
+    onScrubTo: (index) => moveToIndex(index),
+    indexFromX: indexFromClientX,
+    onReplay: replayCurrentPoint,
+    onPlayFrom: playFromCurrent,
+    onStop: stopEverything,
+    onExtendRegion: extendRegion,
+    onZoom: toggleZoom,
+    onClearRegion: clearRegion,
+    onAnchor: setAnchor,
+    onCompare: compareWithAnchor,
+    onMax: () => jumpToExtreme('max'),
+    onMin: () => jumpToExtreme('min'),
+    onSpeak: speakCurrentPoint,
+    onLegend: playLegend,
+    onHelp: openHelp
+  });
+}
+
+function tempo() {
+  return Number(tempoSlider.value);
+}
+
+function specText() {
+  return JSON.stringify(state.spec, null, 2);
+}
+
+function announce(text) {
+  announcer.textContent = '';
+  // Re-set on the next tick so repeated identical announcements are re-read.
+  requestAnimationFrame(() => { announcer.textContent = text; });
+}
+
+function currentPoint() {
+  return state.points[state.currentIndex] || null;
+}
+
+function pitchFieldInfo() {
+  const fieldKey = state.mappings.pitch;
+  if (!fieldKey) return null;
+  return { key: fieldKey, label: getField(state.dataset, fieldKey)?.label || fieldKey };
+}
+
+function pointSummary(point) {
+  const pitch = pitchFieldInfo();
+  const parts = [`${point.index + 1} of ${state.points.length}: ${point.position.label}.`];
+  if (pitch) parts.push(`${pitch.label} ${point.row[pitch.key]}.`);
+  return parts.join(' ');
+}
+
+function regionBounds() {
+  if (!state.region) return null;
+  return {
+    start: Math.min(state.region.anchor, state.region.focus),
+    end: Math.max(state.region.anchor, state.region.focus)
+  };
+}
+
+function moveToIndex(index, { scrubAudio = true } = {}) {
+  if (!state.points.length) return;
+  // While zoomed, navigation confines itself to the selected region.
+  const bounds = state.zoomed ? regionBounds() : null;
+  const lo = bounds ? bounds.start : 0;
+  const hi = bounds ? bounds.end : state.points.length - 1;
+  const clamped = Math.max(lo, Math.min(hi, index));
+  if (clamped === state.currentIndex) return;
+  state.currentIndex = clamped;
+
+  renderPointInspector();
+  updateCursor();
+  const point = currentPoint();
+  announce(pointSummary(point));
+
+  if (scrubAudio) {
+    const throttleMs = state.spec?.interaction?.scrub?.throttleMs ?? 80;
+    const timestamp = performance.now();
+    if (timestamp - state.lastScrubAudioAt >= throttleMs) {
+      state.lastScrubAudioAt = timestamp;
+      renderPoint(point, { mode: 'scrub', tempo: tempo() });
+    }
+  }
+}
+
+function replayCurrentPoint() {
+  const point = currentPoint();
+  if (!point) return;
+  stopSpeech();
+  renderPoint(point, { mode: 'full', tempo: tempo() });
+  announce(`Replayed ${point.position.label}.`);
+}
+
+function speakCurrentPoint() {
+  const point = currentPoint();
+  if (!point) return;
+  const details = Object.entries(point.explanation)
+    .filter(([channel]) => channel !== 'pitch')
+    .map(([, detail]) => {
+      const label = getField(state.dataset, detail.field)?.label || detail.field;
+      return `${label} ${detail.raw}`;
+    });
+  const seen = new Set();
+  const unique = details.filter((detail) => {
+    if (seen.has(detail)) return false;
+    seen.add(detail);
+    return true;
+  });
+  speak(`${pointSummary(point)} ${unique.join('. ')}.`);
+}
+
+function setAnchor() {
+  const point = currentPoint();
+  if (!point) return;
+  state.anchorIndex = state.currentIndex;
+  renderAnchorStatus();
+  announce(`Anchored ${point.position.label}.`);
+}
+
+function compareWithAnchor() {
+  const point = currentPoint();
+  if (!point) return;
+  if (state.anchorIndex === null || !state.points[state.anchorIndex]) {
+    announce('No anchor set. Press A on a point first.');
+    speak('No anchor set. Press A on a point first.');
+    return;
+  }
+
+  const anchorPoint = state.points[state.anchorIndex];
+  stopSpeech();
+  const totalSeconds = renderComparison(anchorPoint, point, { tempo: tempo() });
+
+  const pitch = pitchFieldInfo();
+  let deltaText = '';
+  if (pitch) {
+    const from = Number(anchorPoint.row[pitch.key]);
+    const to = Number(point.row[pitch.key]);
+    if (Number.isFinite(from) && Number.isFinite(to)) {
+      if (from === to) {
+        deltaText = `${pitch.label} unchanged at ${to}.`;
+      } else if (from !== 0) {
+        const pct = ((to - from) / Math.abs(from)) * 100;
+        deltaText = `${pitch.label} ${pct > 0 ? 'up' : 'down'} ${Math.abs(pct).toFixed(1)} percent.`;
+      } else {
+        deltaText = `${pitch.label} changed from ${from} to ${to}.`;
+      }
+    }
+  }
+
+  const summary = `Compared anchor ${anchorPoint.position.label} with ${point.position.label}. ${deltaText}`;
+  announce(summary);
+  setTimeout(() => speak(summary, { interrupt: false }), Math.max(0, totalSeconds * 1000));
+}
+
+function jumpToExtreme(kind) {
+  const pitch = pitchFieldInfo();
+  if (!pitch || !state.points.length) {
+    announce('No pitch field mapped.');
+    return;
+  }
+
+  let bestIndex = 0;
+  state.points.forEach((point, index) => {
+    const value = Number(point.row[pitch.key]);
+    const best = Number(state.points[bestIndex].row[pitch.key]);
+    if (kind === 'max' ? value > best : value < best) bestIndex = index;
+  });
+
+  state.currentIndex = bestIndex;
+  renderPointInspector();
+  updateCursor();
+  const point = currentPoint();
+  renderPoint(point, { mode: 'full', tempo: tempo() });
+  const text = `${kind === 'max' ? 'Maximum' : 'Minimum'} ${pitch.label}: ${point.row[pitch.key]}, at ${point.position.label}.`;
+  announce(text);
+  speak(text);
+}
+
+function stopEverything() {
+  legendToken += 1;
+  stopAll();
+  stopSpeech();
+  announce('Stopped.');
+}
+
+async function playLegend() {
+  if (!state.spec) return;
+  stopAll();
+  stopSpeech();
+  ensureAudioContext();
+
+  const token = ++legendToken;
+  const queue = compileLegendQueue(state.spec, state.points);
+  announce('Playing legend.');
+
+  for (const item of queue) {
+    if (token !== legendToken) return;
+    if (item.kind === 'speech') {
+      await speakAsync(item.text);
+    } else if (item.kind === 'audio') {
+      playEvents(item.events);
+      await new Promise((resolve) => setTimeout(resolve, item.span * 1000 + 150));
+    }
+  }
+
+  if (token === legendToken) announce('Legend finished.');
+}
+
+function extendRegion(direction) {
+  if (!state.points.length) return;
+  if (state.zoomed) {
+    announce('Clear the zoom with X before changing the selection.');
+    return;
+  }
+
+  if (!state.region) {
+    const focus = Math.max(0, Math.min(state.points.length - 1, state.currentIndex + direction));
+    state.region = { anchor: state.currentIndex, focus };
+  } else {
+    state.region.focus = Math.max(0, Math.min(state.points.length - 1, state.region.focus + direction));
+  }
+
+  moveToIndex(state.region.focus);
+  updateRegionVisual();
+  const bounds = regionBounds();
+  announce(`Selected points ${bounds.start + 1} to ${bounds.end + 1} of ${state.points.length}. Press Z to zoom.`);
+}
+
+function toggleZoom() {
+  if (!state.region) {
+    announce('No region selected. Use Shift with arrow keys to select a region first.');
+    return;
+  }
+
+  state.zoomed = !state.zoomed;
+  const bounds = regionBounds();
+  if (state.zoomed) {
+    moveToIndex(Math.max(bounds.start, Math.min(bounds.end, state.currentIndex)), { scrubAudio: false });
+    announce(`Zoomed into points ${bounds.start + 1} to ${bounds.end + 1}. Playback is dilated. Press Enter to play, X to zoom out.`);
+  } else {
+    announce('Zoomed out.');
+  }
+  updateRegionVisual();
+}
+
+function clearRegion() {
+  if (!state.region && !state.zoomed) return;
+  state.region = null;
+  state.zoomed = false;
+  updateRegionVisual();
+  announce('Selection cleared.');
+}
+
+function openHelp() {
+  helpReturnFocus = document.activeElement;
+  helpOverlay.hidden = false;
+  closeHelpButton.focus();
+}
+
+function closeHelp() {
+  helpOverlay.hidden = true;
+  if (helpReturnFocus && typeof helpReturnFocus.focus === 'function') helpReturnFocus.focus();
+  helpReturnFocus = null;
+}
+
+function renderHelpTable() {
+  helpTableBody.innerHTML = CONTROLS.map((control) => `
+    <tr><td><kbd>${control.keys}</kbd></td><td>${control.action}</td></tr>
+  `).join('');
+}
+
+function renderAnchorStatus() {
+  const anchorPoint = state.anchorIndex !== null ? state.points[state.anchorIndex] : null;
+  anchorStatus.textContent = anchorPoint
+    ? `Anchor: ${anchorPoint.position.label} (point ${anchorPoint.index + 1}). Press C on any point to compare.`
+    : 'No anchor set. Press A on a point to bookmark it for comparison.';
+}
+
+function importVegaLite() {
+  importError.textContent = '';
+  const text = vlInput.value.trim();
+  if (!text) {
+    importError.textContent = 'Paste a Vega-Lite JSON spec first.';
+    return;
+  }
+
+  let result;
+  try {
+    result = vegaLiteToSonify(text);
+  } catch (error) {
+    importError.textContent = error instanceof SyntaxError ? `Not valid JSON: ${error.message}` : error.message;
+    announce(`Import failed. ${importError.textContent}`);
+    return;
+  }
+
+  stopAll();
+  state.imported = result;
+  state.dataset = result.dataset;
+  state.mappings = { ...result.mappings };
+  state.currentIndex = 0;
+  state.anchorIndex = null;
+  state.region = null;
+  state.zoomed = false;
+  renderAll();
+  announce(`Imported ${result.dataset.name}: ${result.dataset.rows.length} points. Suggested mappings applied. Focus the chart to explore.`);
+}
+
+function recompile() {
+  state.spec = buildSpec(state.dataset, state.mappings, {
+    tempo: tempo(),
+    articulation: state.dataset.articulation
+  });
+  const validation = validateSpec(state.spec);
+  if (!validation.valid) {
+    console.warn('Sonify spec validation errors:', validation.errors);
+  }
+  state.points = compileEncodedPoints(state.spec);
+  state.currentIndex = Math.max(0, Math.min(state.points.length - 1, state.currentIndex));
+  if (state.anchorIndex !== null && state.anchorIndex >= state.points.length) state.anchorIndex = null;
+  if (state.region && (state.region.anchor >= state.points.length || state.region.focus >= state.points.length)) {
+    state.region = null;
+    state.zoomed = false;
+  }
 }
 
 function insertAdditionalPanels() {
@@ -167,13 +493,21 @@ function insertAdditionalPanels() {
 function renderDatasetButtons() {
   datasetOptions.innerHTML = '';
 
-  datasets.forEach((dataset) => {
+  const selectable = [...datasets];
+  if (state.imported) selectable.push(state.imported.dataset);
+
+  selectable.forEach((dataset) => {
     const button = document.createElement('button');
-    button.className = `option-button ${dataset.id === selectedDataset.id ? 'active' : ''}`;
+    button.className = `option-button ${dataset.id === state.dataset.id ? 'active' : ''}`;
+    button.setAttribute('aria-pressed', String(dataset.id === state.dataset.id));
     button.innerHTML = `<strong>${dataset.name}</strong><span>${dataset.description}</span>`;
     button.addEventListener('click', () => {
-      selectedDataset = dataset;
-      fieldMappings = { ...presets[dataset.id] };
+      state.dataset = dataset;
+      state.mappings = dataset.id === 'imported' ? { ...state.imported.mappings } : { ...presets[dataset.id] };
+      state.currentIndex = 0;
+      state.anchorIndex = null;
+      state.region = null;
+      state.zoomed = false;
       renderAll();
     });
     datasetOptions.appendChild(button);
@@ -188,9 +522,9 @@ function renderFieldMappingControls() {
     const wrapper = document.createElement('label');
     wrapper.className = 'mapping-control';
 
-    const options = selectedDataset.fields
+    const options = state.dataset.fields
       .filter((field) => channel.accepted.includes(field.type))
-      .map((field) => `<option value="${field.key}" ${fieldMappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
+      .map((field) => `<option value="${field.key}" ${state.mappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
       .join('');
 
     wrapper.innerHTML = `
@@ -204,7 +538,7 @@ function renderFieldMappingControls() {
 
     const select = wrapper.querySelector('select');
     select.addEventListener('change', (event) => {
-      fieldMappings[channel.key] = event.target.value === 'none' ? null : event.target.value;
+      state.mappings[channel.key] = event.target.value === 'none' ? null : event.target.value;
       renderAll({ skipControls: true });
     });
 
@@ -213,100 +547,308 @@ function renderFieldMappingControls() {
 }
 
 function renderAll(options = {}) {
+  recompile();
+
   if (!options.skipControls) {
     renderDatasetButtons();
     renderFieldMappingControls();
   }
 
-  chartType.textContent = `${selectedDataset.rows.length} rows · ${selectedDataset.fields.length} fields`;
+  chartType.textContent = `${state.dataset.rows.length} rows · ${state.dataset.fields.length} fields`;
   mappingFit.textContent = 'Custom grammar';
   mappingDescription.textContent = 'Each row is rendered as a small audio event. Your field mappings determine the pitch, rhythm, duration, chord, motif, pan, volume, timbre, and state-harmony cues. This is intentionally a grammar playground, not a finished chart recommendation.';
 
   renderVisualization();
   renderDataTable();
   renderExplanation();
-}
-
-function getField(key) {
-  return selectedDataset.fields.find((field) => field.key === key);
-}
-
-function getNumericValues(fieldKey) {
-  return selectedDataset.rows.map((row) => Number(row[fieldKey])).filter((value) => Number.isFinite(value));
-}
-
-function extent(fieldKey) {
-  const values = getNumericValues(fieldKey);
-  if (!values.length) return [0, 1];
-  return [Math.min(...values), Math.max(...values)];
-}
-
-function normalize(value, fieldKey) {
-  const [min, max] = extent(fieldKey);
-  if (max === min) return 0.5;
-  return Math.max(0, Math.min(1, (Number(value) - min) / (max - min)));
-}
-
-function uniqueValues(fieldKey) {
-  return [...new Set(selectedDataset.rows.map((row) => row[fieldKey]))];
-}
-
-function categoryIndex(value, fieldKey) {
-  const values = uniqueValues(fieldKey);
-  return Math.max(0, values.indexOf(value));
+  renderSpecViewer();
+  renderPointInspector();
+  renderAnchorStatus();
 }
 
 function renderVisualization() {
-  visualization.innerHTML = '';
-  visualization.className = 'viz grammar-viz';
+  // Imported charts get true dual rendering: the real Vega-Lite chart with a
+  // synchronized audio cursor. Demo datasets keep the hand-rolled preview.
+  if (state.dataset.id === 'imported' && window.vegaEmbed) {
+    renderVegaChart();
+    return;
+  }
 
-  const pitchField = fieldMappings.pitch || selectedDataset.fields.find((field) => field.type === 'quantitative')?.key;
-  const colorField = fieldMappings.timbre || fieldMappings.chord || fieldMappings.motif;
-  const timeField = fieldMappings.time;
-  const rows = orderedRows();
-  const [min, max] = extent(pitchField);
+  vegaView = null;
+  vegaEmbedded = null;
+  vegaRenderToken += 1;
+
+  visualization.innerHTML = '';
+  visualization.classList.add('grammar-viz');
+  visualization.classList.remove('vega-host');
+
+  const pitchField = state.mappings.pitch || state.dataset.fields.find((field) => field.type === 'quantitative')?.key;
+  const colorField = state.mappings.timbre || state.mappings.chord || state.mappings.motif;
+  const timeField = state.mappings.time;
+  const [min, max] = extent(state.dataset.rows, pitchField);
 
   const width = 720;
   const height = 260;
   const pad = 26;
 
-  const points = rows.map((row, index) => {
-    const x = pad + (index / Math.max(1, rows.length - 1)) * (width - pad * 2);
-    const value = Number(row[pitchField]);
+  const points = state.points.map((point, index) => {
+    const x = pad + (index / Math.max(1, state.points.length - 1)) * (width - pad * 2);
+    const value = Number(point.row[pitchField]);
     const y = height - pad - ((value - min) / Math.max(1, max - min)) * (height - pad * 2);
-    return { x, y, row };
+    return { x, y, row: point.row };
   });
 
-  const circles = points.map(({ x, y, row }) => {
+  state.vizXs = points.map((point) => point.x);
+
+  const circles = points.map(({ x, y, row }, index) => {
     const category = colorField ? row[colorField] : '';
-    const hue = colorField ? (categoryIndex(category, colorField) * 72) % 360 : 195;
-    return `<circle cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
+    const hue = colorField ? (categoryIndex(state.dataset.rows, colorField, category) * 72) % 360 : 195;
+    return `<circle class="viz-point" data-index="${index}" cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
   const line = points.map((point) => `${point.x},${point.y}`).join(' ');
   const labels = points.map(({ x, row }, index) => {
-    if (index % 2 === 1 && rows.length > 8) return '';
+    if (index % 2 === 1 && points.length > 8) return '';
     const text = timeField ? row[timeField] : index + 1;
     return `<text x="${x}" y="${height - 4}" text-anchor="middle" fill="#a7b0be" font-size="11">${text}</text>`;
   }).join('');
 
   visualization.innerHTML = `
-    <svg class="line-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Visual preview using selected pitch and sequence fields">
+    <svg class="line-svg" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#2f3a4a" />
+      <rect id="viz-region" y="${pad}" height="${height - pad * 2}" fill="rgba(125, 211, 252, 0.14)" stroke="rgba(125, 211, 252, 0.5)" stroke-dasharray="3 3" visibility="hidden" />
       <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
+      <line id="viz-cursor" class="viz-cursor" x1="0" y1="${pad}" x2="0" y2="${height - pad}" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.9" />
       ${circles}
       ${labels}
-      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(pitchField)?.label || 'none'}</text>
+      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(state.dataset, pitchField)?.label || 'none'}</text>
     </svg>
   `;
+
+  updateCursor();
+  updateRegionVisual();
+}
+
+async function renderVegaChart() {
+  const imported = state.imported;
+  // Re-embedding is only needed when the imported chart itself changes;
+  // mapping tweaks just re-sync the cursor.
+  if (vegaEmbedded === imported && vegaView) {
+    buildVegaPointXs();
+    updateCursor();
+    return;
+  }
+
+  const token = ++vegaRenderToken;
+  visualization.classList.remove('grammar-viz');
+  visualization.classList.add('vega-host');
+  visualization.innerHTML = `
+    <div id="vega-chart"></div>
+    <div id="vega-cursor" class="vega-cursor" hidden></div>
+  `;
+
+  const vlSpec = { width: 'container', height: 240, ...imported.meta.vlSpec };
+
+  try {
+    const result = await window.vegaEmbed(visualization.querySelector('#vega-chart'), vlSpec, {
+      actions: false,
+      tooltip: false,
+      config: {
+        background: 'transparent',
+        axis: { labelColor: '#a7b0be', titleColor: '#a7b0be', gridColor: '#2f3a4a', domainColor: '#2f3a4a', tickColor: '#2f3a4a' },
+        legend: { labelColor: '#a7b0be', titleColor: '#a7b0be' },
+        title: { color: '#f8fafc' },
+        view: { stroke: '#2f3a4a' }
+      }
+    });
+    if (token !== vegaRenderToken) {
+      result.view.finalize();
+      return;
+    }
+    vegaView = result.view;
+    vegaEmbedded = imported;
+    vegaView.addEventListener('click', (event, item) => {
+      const index = indexFromDatum(item?.datum);
+      if (index !== null) moveToIndex(index);
+    });
+    buildVegaPointXs();
+    updateCursor();
+  } catch (error) {
+    console.warn('vega-embed failed; falling back to the built-in preview.', error);
+    if (token === vegaRenderToken) {
+      vegaView = null;
+      vegaEmbedded = null;
+      visualization.classList.remove('vega-host');
+      renderFallbackPreview();
+    }
+  }
+}
+
+function renderFallbackPreview() {
+  // Reuse the SVG preview path without re-entering the vega branch.
+  const dataset = state.dataset;
+  state.dataset = { ...dataset, id: `${dataset.id}-fallback` };
+  try {
+    renderVisualization();
+  } finally {
+    state.dataset = dataset;
+  }
+}
+
+function buildVegaPointXs() {
+  vegaPointXs = [];
+  if (!vegaView || !state.imported) return;
+
+  try {
+    const meta = state.imported.meta;
+    const scale = vegaView.scale('x');
+    const bandOffset = typeof scale.bandwidth === 'function' ? scale.bandwidth() / 2 : 0;
+
+    vegaPointXs = state.points.map((point) => {
+      let value = point.row[meta.xField];
+      if (meta.xType === 'temporal' && !(value instanceof Date)) {
+        const asDate = new Date(value);
+        if (!Number.isNaN(+asDate)) value = asDate;
+      }
+      const px = scale(value);
+      return Number.isFinite(px) ? px + bandOffset : null;
+    });
+  } catch (error) {
+    console.warn('Could not compute chart cursor positions.', error);
+    vegaPointXs = [];
+  }
+}
+
+function vegaCanvasElement() {
+  return visualization.querySelector('#vega-chart canvas, #vega-chart svg');
+}
+
+function updateVegaCursor() {
+  const cursor = visualization.querySelector('#vega-cursor');
+  const canvas = vegaCanvasElement();
+  if (!cursor || !canvas || !vegaView) return;
+
+  const px = vegaPointXs[state.currentIndex];
+  if (px === null || px === undefined) {
+    cursor.hidden = true;
+    return;
+  }
+
+  const origin = vegaView.origin();
+  const canvasRect = canvas.getBoundingClientRect();
+  const hostRect = visualization.getBoundingClientRect();
+
+  cursor.hidden = false;
+  cursor.style.left = `${canvasRect.left - hostRect.left + origin[0] + px - 1}px`;
+  cursor.style.top = `${canvasRect.top - hostRect.top + origin[1]}px`;
+  cursor.style.height = `${vegaView.height()}px`;
+}
+
+function indexFromDatum(datum) {
+  if (!datum || !state.imported) return null;
+
+  const meta = state.imported.meta;
+  const matches = (rowValue, datumValue, type) => {
+    if (type === 'temporal') {
+      const a = +new Date(rowValue);
+      const b = datumValue instanceof Date ? +datumValue : +new Date(datumValue);
+      if (Number.isFinite(a) && Number.isFinite(b)) return a === b;
+    }
+    return String(rowValue) === String(datumValue) || Number(rowValue) === Number(datumValue);
+  };
+
+  for (const point of state.points) {
+    if (!matches(point.row[meta.xField], datum[meta.xField], meta.xType)) continue;
+    if (meta.colorField && String(point.row[meta.colorField]) !== String(datum[meta.colorField])) continue;
+    return point.index;
+  }
+  return null;
+}
+
+function updateRegionVisual() {
+  const rect = visualization.querySelector('#viz-region');
+  if (!rect) return;
+
+  const bounds = regionBounds();
+  if (!bounds || !state.vizXs.length) {
+    rect.setAttribute('visibility', 'hidden');
+    return;
+  }
+
+  const startX = state.vizXs[bounds.start];
+  const endX = state.vizXs[bounds.end];
+  rect.setAttribute('x', startX - 8);
+  rect.setAttribute('width', Math.max(16, endX - startX + 16));
+  rect.setAttribute('visibility', 'visible');
+  rect.setAttribute('fill', state.zoomed ? 'rgba(192, 132, 252, 0.16)' : 'rgba(125, 211, 252, 0.14)');
+}
+
+function updateCursor() {
+  if (vegaView) {
+    updateVegaCursor();
+    return;
+  }
+
+  const svg = visualization.querySelector('svg');
+  if (!svg) return;
+
+  const cursor = svg.querySelector('#viz-cursor');
+  const x = state.vizXs[state.currentIndex];
+  if (cursor && x !== undefined) {
+    cursor.setAttribute('x1', x);
+    cursor.setAttribute('x2', x);
+  }
+
+  svg.querySelectorAll('.viz-point').forEach((circle) => {
+    circle.classList.toggle('current', Number(circle.dataset.index) === state.currentIndex);
+  });
+}
+
+function indexFromClientX(clientX) {
+  if (vegaView) {
+    const canvas = vegaCanvasElement();
+    if (!canvas || !vegaPointXs.length) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left - vegaView.origin()[0];
+
+    let best = null;
+    let bestDistance = Infinity;
+    vegaPointXs.forEach((candidate, index) => {
+      if (candidate === null || candidate === undefined) return;
+      const distance = Math.abs(candidate - x);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    });
+    return best;
+  }
+
+  const svg = visualization.querySelector('svg');
+  if (!svg || !state.vizXs.length) return null;
+
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width) return null;
+  const x = ((clientX - rect.left) / rect.width) * 720;
+
+  let best = 0;
+  let bestDistance = Infinity;
+  state.vizXs.forEach((candidate, index) => {
+    const distance = Math.abs(candidate - x);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = index;
+    }
+  });
+  return best;
 }
 
 function renderDataTable() {
-  const rows = selectedDataset.rows;
-  const headers = selectedDataset.fields.map((field) => `<th>${field.label}</th>`).join('');
+  const rows = state.dataset.rows;
+  const headers = state.dataset.fields.map((field) => `<th>${field.label}</th>`).join('');
   const body = rows.map((row) => {
-    const cells = selectedDataset.fields.map((field) => `<td>${row[field.key]}</td>`).join('');
+    const cells = state.dataset.fields.map((field) => `<td>${row[field.key]}</td>`).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
 
@@ -322,10 +864,10 @@ function renderDataTable() {
 
 function renderExplanation() {
   const items = channelDefinitions
-    .filter((channel) => fieldMappings[channel.key])
+    .filter((channel) => state.mappings[channel.key])
     .map((channel) => {
-      const field = getField(fieldMappings[channel.key]);
-      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || fieldMappings[channel.key]}</span>.</li>`;
+      const field = getField(state.dataset, state.mappings[channel.key]);
+      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || state.mappings[channel.key]}</span>.</li>`;
     })
     .join('');
 
@@ -335,191 +877,72 @@ function renderExplanation() {
   `;
 }
 
-function orderedRows() {
-  const rows = [...selectedDataset.rows];
-  const timeField = fieldMappings.time;
-  if (!timeField) return rows;
+function renderSpecViewer() {
+  specJson.textContent = specText();
+}
 
-  return rows.sort((a, b) => {
-    const av = a[timeField];
-    const bv = b[timeField];
-    if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-    return String(av).localeCompare(String(bv));
-  });
+function renderPointInspector() {
+  const point = currentPoint();
+  if (!point) {
+    pointInspector.innerHTML = '<p class="description">No encoded points.</p>';
+    pointPosition.textContent = '';
+    return;
+  }
+
+  pointPosition.textContent = `${point.index + 1} of ${state.points.length} · ${point.position.label}`;
+  prevPointButton.disabled = point.index === 0;
+  nextPointButton.disabled = point.index === state.points.length - 1;
+
+  const channelRows = Object.entries(point.explanation).map(([channel, detail]) => `
+    <tr>
+      <td>${channel}</td>
+      <td>${detail.field}</td>
+      <td>${detail.raw}</td>
+      <td>${detail.scaled}</td>
+    </tr>
+  `).join('');
+
+  pointInspector.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Channel</th><th>Field</th><th>Raw</th><th>Scaled</th></tr></thead>
+        <tbody>${channelRows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function rowLabel(row) {
-  const nominal = selectedDataset.fields.find((field) => field.type === 'nominal');
-  const temporal = selectedDataset.fields.find((field) => field.type === 'temporal');
+  const nominal = state.dataset.fields.find((field) => field.type === 'nominal');
+  const temporal = state.dataset.fields.find((field) => field.type === 'temporal');
   return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 
-function ensureAudioContext() {
-  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioContext.state === 'suspended') audioContext.resume();
-}
+function playFromCurrent() {
+  if (!state.points.length) return;
+  stopSpeech();
+  ensureAudioContext();
 
-function stopAll() {
-  activeNodes.forEach((node) => {
-    try { node.stop(); } catch (error) { /* already stopped */ }
-  });
-  activeNodes = [];
-}
-
-function midiToFrequency(midi) {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function fieldFrequency(row) {
-  const field = fieldMappings.pitch;
-  if (!field) return midiToFrequency(60);
-  const scale = [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72];
-  const n = normalize(row[field], field);
-  const index = Math.max(0, Math.min(scale.length - 1, Math.round(n * (scale.length - 1))));
-  return midiToFrequency(scale[index]);
-}
-
-function fieldDuration(row, tempo) {
-  const field = fieldMappings.duration;
-  if (!field) return 0.28 / tempo;
-  return (0.16 + normalize(row[field], field) * 0.48) / tempo;
-}
-
-function fieldVolume(row) {
-  const field = fieldMappings.volume;
-  if (!field) return 0.13;
-  return 0.06 + normalize(row[field], field) * 0.12;
-}
-
-function fieldPan(row) {
-  const field = fieldMappings.pan;
-  if (!field) return 0;
-  const fieldDef = getField(field);
-  if (fieldDef?.type === 'quantitative') return -0.75 + normalize(row[field], field) * 1.5;
-  const values = uniqueValues(field);
-  if (values.length <= 1) return 0;
-  return -0.75 + (categoryIndex(row[field], field) / (values.length - 1)) * 1.5;
-}
-
-function fieldWaveform(row) {
-  const field = fieldMappings.timbre;
-  if (!field) return 'sine';
-  const waves = ['sine', 'triangle', 'square', 'sawtooth'];
-  return waves[categoryIndex(row[field], field) % waves.length];
-}
-
-function createGain(time, duration, peak = 0.13) {
-  const gain = audioContext.createGain();
-  gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), time + 0.025);
-  gain.gain.setValueAtTime(Math.max(0.0002, peak), Math.max(time + 0.03, time + duration - 0.08));
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-  return gain;
-}
-
-function playTone(freq, start, duration, type = 'sine', volume = 0.13, pan = 0) {
-  const osc = audioContext.createOscillator();
-  const gain = createGain(start, duration, volume);
-  const panner = audioContext.createStereoPanner();
-
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, start);
-  panner.pan.setValueAtTime(pan, start);
-
-  osc.connect(gain);
-  gain.connect(panner);
-  panner.connect(audioContext.destination);
-
-  osc.start(start);
-  osc.stop(start + duration + 0.02);
-  activeNodes.push(osc);
-}
-
-function playChordForRow(row, start, tempo, pan) {
-  const field = fieldMappings.chord;
-  if (!field) return;
-
-  const chordBank = [
-    [48, 52, 55, 60],
-    [48, 53, 57, 60],
-    [48, 55, 62, 65],
-    [48, 50, 55, 60],
-    [48, 51, 55, 58],
-    [48, 52, 59, 64]
-  ];
-
-  const chord = chordBank[categoryIndex(row[field], field) % chordBank.length];
-  chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.26 / tempo, 'sine', 0.035, pan));
-}
-
-function playMotifForRow(row, start, tempo, pan) {
-  const field = fieldMappings.motif;
-  if (!field) return 0;
-
-  const motifs = [
-    [60, 64, 62],
-    [60, 57, 62],
-    [55, 60, 67],
-    [64, 62, 60],
-    [60, 65, 64],
-    [57, 60, 62]
-  ];
-
-  const motif = motifs[categoryIndex(row[field], field) % motifs.length];
-  motif.forEach((midi, index) => {
-    playTone(midiToFrequency(midi), start + index * (0.08 / tempo), 0.055 / tempo, 'triangle', 0.055, pan);
+  const bounds = state.zoomed ? regionBounds() : null;
+  const queue = compileAudioQueue(state.points, state.spec, {
+    fromIndex: state.currentIndex,
+    region: bounds,
+    dilate: state.zoomed
   });
 
-  return 0.28 / tempo;
-}
-
-function playRhythmForRow(row, start, tempo, baseFreq, pan) {
-  const field = fieldMappings.rhythm;
-  if (!field) return;
-
-  const pulses = 1 + Math.round(normalize(row[field], field) * 6);
-  for (let i = 0; i < pulses; i += 1) {
-    playTone(baseFreq * 2, start + i * (0.055 / tempo), 0.028 / tempo, 'square', 0.025, pan);
-  }
-}
-
-function playStatusForRow(row, start, tempo, pan) {
-  const field = fieldMappings.status;
-  if (!field) return;
-
-  const n = normalize(row[field], field);
-  const states = [
-    { threshold: 0.25, chord: [43, 48, 52, 55], wave: 'sine', volume: 0.025 },
-    { threshold: 0.5, chord: [43, 48, 53, 55], wave: 'triangle', volume: 0.03 },
-    { threshold: 0.75, chord: [43, 46, 50, 55], wave: 'triangle', volume: 0.035 },
-    { threshold: 1, chord: [43, 46, 49, 54], wave: 'sawtooth', volume: 0.03 }
-  ];
-
-  const state = states.find((candidate) => n <= candidate.threshold) || states[states.length - 1];
-  state.chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.42 / tempo, state.wave, state.volume, pan));
-}
-
-function playCombinedMapping() {
-  const tempo = Number(tempoSlider.value);
-  const rows = orderedRows();
-  const step = 0.72 / tempo;
-  const startBase = audioContext.currentTime + 0.08;
-
-  rows.forEach((row, index) => {
-    const eventStart = startBase + index * step;
-    const pan = fieldPan(row);
-    const motifOffset = playMotifForRow(row, eventStart, tempo, pan);
-    const mainStart = eventStart + motifOffset;
-    const freq = fieldFrequency(row);
-    const duration = fieldDuration(row, tempo);
-    const volume = fieldVolume(row);
-    const wave = fieldWaveform(row);
-
-    playChordForRow(row, mainStart, tempo, pan);
-    playStatusForRow(row, mainStart, tempo, pan);
-    playRhythmForRow(row, mainStart, tempo, freq, pan);
-    playTone(freq, mainStart + 0.06 / tempo, duration, wave, volume, pan);
+  playQueue(queue, {
+    tempo: tempo(),
+    onStep: (index) => {
+      state.currentIndex = index;
+      renderPointInspector();
+      updateCursor();
+    },
+    onDone: () => announce('Finished.')
   });
+
+  announce(bounds
+    ? `Playing zoomed region from point ${state.currentIndex + 1}.`
+    : `Playing from point ${state.currentIndex + 1} of ${state.points.length}.`);
 }
 
 init();

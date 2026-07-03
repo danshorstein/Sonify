@@ -46,13 +46,40 @@
         </article>
       </section>
 
+      <section class="panel" aria-labelledby="import-title">
+        <h2 id="import-title">Import a Vega-Lite or Altair chart</h2>
+        <p class="description import-description">
+          Paste Vega-Lite JSON with inline <code>data.values</code>. From Altair, that is simply <code>chart.to_dict()</code>.
+          Supported marks: bar, line (single or multi-series), and point/circle. Sonify suggests audio mappings
+          (x&#8594;time, y&#8594;pitch, color&#8594;timbre+pan, size&#8594;loudness) that you can override above.
+        </p>
+        <div class="controls" id="example-buttons" role="group" aria-label="Example charts"></div>
+        <label class="vl-label" for="vl-input">Vega-Lite JSON</label>
+        <textarea id="vl-input" class="vl-textarea" rows="8" spellcheck="false" placeholder='{"mark": "bar", "data": {"values": [...]}, "encoding": {...}}'></textarea>
+        <div class="controls">
+          <button id="import-vl" class="primary-button">Import chart</button>
+        </div>
+        <p id="import-error" class="import-error" role="alert"></p>
+      </section>
+
       <section class="grid two-column">
         <article class="panel" aria-labelledby="visual-title">
           <div class="section-header">
             <h2 id="visual-title">Visual encoding preview</h2>
             <span id="chart-type" class="pill"></span>
           </div>
-          <div id="visualization" class="viz" role="img" aria-label="Simple visual representation of selected data"></div>
+          <div
+            id="visualization"
+            class="viz"
+            tabindex="0"
+            role="application"
+            aria-roledescription="sonification explorer"
+            aria-label="Sonification explorer. Use arrow keys to scrub through data points, Space to replay, A to anchor, C to compare, M and N for extremes, S to speak values, question mark for all keyboard controls."
+            aria-describedby="explorer-hint"
+          ></div>
+          <p id="explorer-hint" class="description explorer-hint">
+            Focus the chart, then scrub with arrow keys, mouse wheel, or drag. Press <kbd>?</kbd> for all keyboard controls.
+          </p>
         </article>
 
         <article class="panel" aria-labelledby="audio-title">
@@ -62,14 +89,47 @@
           </div>
           <p id="mapping-description" class="description"></p>
           <div class="controls">
-            <button id="play-button" class="primary-button">Play combined mapping</button>
+            <button id="play-button" class="primary-button">Play from current point (Enter)</button>
             <button id="stop-button" class="secondary-button">Stop</button>
+            <button id="legend-button" class="secondary-button">Play legend (L)</button>
+            <button id="help-button" class="secondary-button" aria-haspopup="dialog">Keyboard help (?)</button>
           </div>
           <div class="control-row">
             <label for="tempo-slider">Tempo</label>
             <input id="tempo-slider" type="range" min="0.6" max="1.8" value="1" step="0.1" />
             <span id="tempo-value">1.0x</span>
           </div>
+        </article>
+      </section>
+
+      <section class="grid two-column">
+        <article class="panel" aria-labelledby="inspector-title">
+          <div class="section-header">
+            <h2 id="inspector-title">Point inspector</h2>
+            <span id="point-position" class="pill"></span>
+          </div>
+          <div class="controls">
+            <button id="prev-point" class="secondary-button">&#9664; Previous</button>
+            <button id="next-point" class="secondary-button">Next &#9654;</button>
+            <button id="hear-point" class="secondary-button">Hear this point</button>
+            <button id="speak-point" class="secondary-button">Speak values (S)</button>
+            <button id="anchor-point" class="secondary-button">Anchor (A)</button>
+            <button id="compare-point" class="secondary-button">Compare (C)</button>
+          </div>
+          <p id="anchor-status" class="description anchor-status">No anchor set.</p>
+          <div id="point-inspector" class="point-inspector"></div>
+        </article>
+
+        <article class="panel" aria-labelledby="spec-title">
+          <div class="section-header">
+            <h2 id="spec-title">Sonify spec</h2>
+            <span class="pill">single source of truth</span>
+          </div>
+          <div class="controls">
+            <button id="copy-spec" class="secondary-button">Copy JSON</button>
+            <button id="download-spec" class="secondary-button">Download spec</button>
+          </div>
+          <pre id="spec-json" class="spec-json" tabindex="0" aria-label="Sonify spec as JSON"></pre>
         </article>
       </section>
 
@@ -109,6 +169,27 @@
       </section>
     </main>
 
+    <div id="announcer" class="visually-hidden" aria-live="polite"></div>
+
+    <div id="help-overlay" class="help-overlay" hidden>
+      <div class="help-dialog panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="section-header">
+          <h2 id="help-title">Keyboard controls</h2>
+          <button id="close-help" class="secondary-button">Close</button>
+        </div>
+        <p class="description">These controls work whenever the sonification explorer (the chart area) has focus.</p>
+        <div class="table-wrap">
+          <table id="help-table">
+            <thead><tr><th scope="col">Keys</th><th scope="col">Action</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

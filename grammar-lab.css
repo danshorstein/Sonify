@@ -85,6 +85,190 @@
   margin-bottom: 18px;
 }
 
+.spec-json {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #0f172a;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.spec-json:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.point-inspector table {
+  font-size: 0.88rem;
+}
+
+.point-inspector td:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+#visualization:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+.spec-json:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#visualization {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.explorer-hint {
+  min-height: 0;
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+}
+
+.explorer-hint kbd,
+.help-dialog kbd {
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82em;
+}
+
+.anchor-status {
+  min-height: 0;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+}
+
+.viz-cursor {
+  pointer-events: none;
+}
+
+.viz-point.current {
+  stroke: #f8fafc;
+  stroke-width: 3;
+}
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 16, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.help-overlay[hidden] {
+  display: none;
+}
+
+.help-dialog {
+  width: min(640px, 100%);
+  max-height: 84vh;
+  overflow: auto;
+}
+
+.import-description {
+  min-height: 0;
+}
+
+.import-description code {
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+.vl-label {
+  display: block;
+  font-weight: 800;
+  margin: 12px 0 8px;
+}
+
+.vl-textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #0f172a;
+  color: var(--text);
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.vl-textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.16);
+}
+
+.import-error {
+  min-height: 0;
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.import-error:empty {
+  display: none;
+}
+
+.vega-host {
+  display: block;
+  position: relative;
+  padding: 14px;
+  align-items: stretch;
+}
+
+#vega-chart {
+  width: 100%;
+}
+
+#vega-chart canvas,
+#vega-chart svg {
+  max-width: 100%;
+}
+
+.vega-cursor {
+  position: absolute;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.85;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.28);
+  border-radius: 2px;
+}
+
 @media (max-width: 980px) {
   .mapping-grid {
     grid-template-columns: 1fr;

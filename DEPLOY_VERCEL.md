@@ -21,7 +21,7 @@ When importing the GitHub repository into Vercel:
 - Output Directory: leave empty or `.`
 - Install Command: leave empty
 
-The FastAPI backend under `backend/` is experimental and not required for the static Grammar Lab deployment.
+The retired FastAPI backend under `legacy/backend/` is not deployed and not required for the static Grammar Lab deployment.
 
 ## What works in the Vercel demo
 
