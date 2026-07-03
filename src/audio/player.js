@@ -8,6 +8,7 @@ const PULSE_GAIN = 0.025;
 
 let audioContext = null;
 let activeNodes = [];
+let queueWatcher = null;
 
 export function ensureAudioContext() {
   if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -20,6 +21,10 @@ export function now() {
 }
 
 export function stopAll() {
+  if (queueWatcher) {
+    clearInterval(queueWatcher);
+    queueWatcher = null;
+  }
   activeNodes.forEach((node) => {
     try { node.stop(); } catch (error) { /* already stopped */ }
   });
@@ -114,6 +119,40 @@ export function renderPoint(point, { mode = 'full', tempo = 1 } = {}) {
   }
 
   return schedulePoint(point, { start: now() + 0.05, tempo });
+}
+
+// Schedules a compiled audio queue and tracks progress so the UI cursor can
+// follow along. onStep receives each point's dataset index as it sounds;
+// onDone fires once at the end. stopAll() cancels both audio and tracking.
+export function playQueue(queue, { tempo = 1, onStep, onDone } = {}) {
+  ensureAudioContext();
+  stopAll();
+  if (!queue.items.length) return;
+
+  const base = now() + 0.1;
+  queue.items.forEach(({ point, offsetSeconds }) => {
+    schedulePoint(point, { start: base + offsetSeconds / tempo, tempo });
+  });
+
+  const totalSeconds = queue.totalSeconds / tempo;
+  const stepSeconds = queue.stepSeconds / tempo;
+  let lastFired = -1;
+
+  queueWatcher = setInterval(() => {
+    const elapsed = now() - base;
+    if (elapsed >= totalSeconds) {
+      clearInterval(queueWatcher);
+      queueWatcher = null;
+      onDone?.();
+      return;
+    }
+    if (elapsed < 0) return;
+    const position = Math.min(queue.items.length - 1, Math.floor(elapsed / stepSeconds));
+    if (position !== lastFired) {
+      lastFired = position;
+      onStep?.(queue.items[position].point.index);
+    }
+  }, 50);
 }
 
 // The auditory saccade: anchor point, short gap, current point.

@@ -5,7 +5,8 @@ import { presets } from './src/spec/defaultMappings.js';
 import { buildSpec } from './src/spec/buildSpec.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
-import { ensureAudioContext, now, schedulePoint, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
+import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
+import { ensureAudioContext, playQueue, renderPoint, renderComparison, stopAll } from './src/audio/player.js';
 import { speak, stopSpeech } from './src/audio/speech.js';
 import { bindExplorer, CONTROLS } from './src/interaction/navigation.js';
 
@@ -16,6 +17,8 @@ const state = {
   points: [],
   currentIndex: 0,
   anchorIndex: null,
+  region: null,
+  zoomed: false,
   vizXs: [],
   lastScrubAudioAt: 0
 };
@@ -63,7 +66,7 @@ function init() {
   renderHelpTable();
   renderAll();
 
-  playButton.addEventListener('click', playCombinedMapping);
+  playButton.addEventListener('click', playFromCurrent);
   stopButton.addEventListener('click', stopEverything);
 
   tempoSlider.addEventListener('input', () => {
@@ -116,7 +119,11 @@ function init() {
     onScrubTo: (index) => moveToIndex(index),
     indexFromX: indexFromClientX,
     onReplay: replayCurrentPoint,
+    onPlayFrom: playFromCurrent,
     onStop: stopEverything,
+    onExtendRegion: extendRegion,
+    onZoom: toggleZoom,
+    onClearRegion: clearRegion,
     onAnchor: setAnchor,
     onCompare: compareWithAnchor,
     onMax: () => jumpToExtreme('max'),
@@ -157,9 +164,21 @@ function pointSummary(point) {
   return parts.join(' ');
 }
 
+function regionBounds() {
+  if (!state.region) return null;
+  return {
+    start: Math.min(state.region.anchor, state.region.focus),
+    end: Math.max(state.region.anchor, state.region.focus)
+  };
+}
+
 function moveToIndex(index, { scrubAudio = true } = {}) {
   if (!state.points.length) return;
-  const clamped = Math.max(0, Math.min(state.points.length - 1, index));
+  // While zoomed, navigation confines itself to the selected region.
+  const bounds = state.zoomed ? regionBounds() : null;
+  const lo = bounds ? bounds.start : 0;
+  const hi = bounds ? bounds.end : state.points.length - 1;
+  const clamped = Math.max(lo, Math.min(hi, index));
   if (clamped === state.currentIndex) return;
   state.currentIndex = clamped;
 
@@ -277,6 +296,51 @@ function stopEverything() {
   announce('Stopped.');
 }
 
+function extendRegion(direction) {
+  if (!state.points.length) return;
+  if (state.zoomed) {
+    announce('Clear the zoom with X before changing the selection.');
+    return;
+  }
+
+  if (!state.region) {
+    const focus = Math.max(0, Math.min(state.points.length - 1, state.currentIndex + direction));
+    state.region = { anchor: state.currentIndex, focus };
+  } else {
+    state.region.focus = Math.max(0, Math.min(state.points.length - 1, state.region.focus + direction));
+  }
+
+  moveToIndex(state.region.focus);
+  updateRegionVisual();
+  const bounds = regionBounds();
+  announce(`Selected points ${bounds.start + 1} to ${bounds.end + 1} of ${state.points.length}. Press Z to zoom.`);
+}
+
+function toggleZoom() {
+  if (!state.region) {
+    announce('No region selected. Use Shift with arrow keys to select a region first.');
+    return;
+  }
+
+  state.zoomed = !state.zoomed;
+  const bounds = regionBounds();
+  if (state.zoomed) {
+    moveToIndex(Math.max(bounds.start, Math.min(bounds.end, state.currentIndex)), { scrubAudio: false });
+    announce(`Zoomed into points ${bounds.start + 1} to ${bounds.end + 1}. Playback is dilated. Press Enter to play, X to zoom out.`);
+  } else {
+    announce('Zoomed out.');
+  }
+  updateRegionVisual();
+}
+
+function clearRegion() {
+  if (!state.region && !state.zoomed) return;
+  state.region = null;
+  state.zoomed = false;
+  updateRegionVisual();
+  announce('Selection cleared.');
+}
+
 function openHelp() {
   helpReturnFocus = document.activeElement;
   helpOverlay.hidden = false;
@@ -311,6 +375,10 @@ function recompile() {
   state.points = compileEncodedPoints(state.spec);
   state.currentIndex = Math.max(0, Math.min(state.points.length - 1, state.currentIndex));
   if (state.anchorIndex !== null && state.anchorIndex >= state.points.length) state.anchorIndex = null;
+  if (state.region && (state.region.anchor >= state.points.length || state.region.focus >= state.points.length)) {
+    state.region = null;
+    state.zoomed = false;
+  }
 }
 
 function insertAdditionalPanels() {
@@ -342,6 +410,8 @@ function renderDatasetButtons() {
       state.mappings = { ...presets[dataset.id] };
       state.currentIndex = 0;
       state.anchorIndex = null;
+      state.region = null;
+      state.zoomed = false;
       renderAll();
     });
     datasetOptions.appendChild(button);
@@ -439,6 +509,7 @@ function renderVisualization() {
     <svg class="line-svg" viewBox="0 0 ${width} ${height}" aria-hidden="true">
       <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#2f3a4a" />
+      <rect id="viz-region" y="${pad}" height="${height - pad * 2}" fill="rgba(125, 211, 252, 0.14)" stroke="rgba(125, 211, 252, 0.5)" stroke-dasharray="3 3" visibility="hidden" />
       <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
       <line id="viz-cursor" class="viz-cursor" x1="0" y1="${pad}" x2="0" y2="${height - pad}" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.9" />
       ${circles}
@@ -448,6 +519,25 @@ function renderVisualization() {
   `;
 
   updateCursor();
+  updateRegionVisual();
+}
+
+function updateRegionVisual() {
+  const rect = visualization.querySelector('#viz-region');
+  if (!rect) return;
+
+  const bounds = regionBounds();
+  if (!bounds || !state.vizXs.length) {
+    rect.setAttribute('visibility', 'hidden');
+    return;
+  }
+
+  const startX = state.vizXs[bounds.start];
+  const endX = state.vizXs[bounds.end];
+  rect.setAttribute('x', startX - 8);
+  rect.setAttribute('width', Math.max(16, endX - startX + 16));
+  rect.setAttribute('visibility', 'visible');
+  rect.setAttribute('fill', state.zoomed ? 'rgba(192, 132, 252, 0.16)' : 'rgba(125, 211, 252, 0.14)');
 }
 
 function updateCursor() {
@@ -560,17 +650,31 @@ function rowLabel(row) {
   return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 
-function playCombinedMapping() {
-  stopAll();
+function playFromCurrent() {
+  if (!state.points.length) return;
+  stopSpeech();
   ensureAudioContext();
 
-  const step = 0.72 / tempo();
-  const startBase = now() + 0.08;
-
-  state.points.forEach((point, index) => {
-    schedulePoint(point, { start: startBase + index * step, tempo: tempo() });
+  const bounds = state.zoomed ? regionBounds() : null;
+  const queue = compileAudioQueue(state.points, state.spec, {
+    fromIndex: state.currentIndex,
+    region: bounds,
+    dilate: state.zoomed
   });
-  announce('Playing.');
+
+  playQueue(queue, {
+    tempo: tempo(),
+    onStep: (index) => {
+      state.currentIndex = index;
+      renderPointInspector();
+      updateCursor();
+    },
+    onDone: () => announce('Finished.')
+  });
+
+  announce(bounds
+    ? `Playing zoomed region from point ${state.currentIndex + 1}.`
+    : `Playing from point ${state.currentIndex + 1} of ${state.points.length}.`);
 }
 
 init();
