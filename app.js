@@ -1,116 +1,14 @@
-const datasets = [
-  {
-    id: 'agency-spending',
-    name: 'Federal agency spending by fiscal year',
-    description: 'A richer public-finance style dataset with time, agency, mission category, spending, growth, risk, confidence, and transaction volume.',
-    fields: [
-      { key: 'fiscalYear', label: 'Fiscal Year', type: 'temporal' },
-      { key: 'agency', label: 'Agency', type: 'nominal' },
-      { key: 'mission', label: 'Mission', type: 'nominal' },
-      { key: 'spendBillions', label: 'Spend ($B)', type: 'quantitative' },
-      { key: 'growthPct', label: 'YoY Growth %', type: 'quantitative' },
-      { key: 'riskScore', label: 'Risk Score', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' },
-      { key: 'transactionsK', label: 'Transactions (K)', type: 'quantitative' }
-    ],
-    rows: [
-      { fiscalYear: 2021, agency: 'Defense', mission: 'Security', spendBillions: 705, growthPct: 2.9, riskScore: 61, confidence: 84, transactionsK: 980 },
-      { fiscalYear: 2021, agency: 'Health', mission: 'Care', spendBillions: 1310, growthPct: 8.7, riskScore: 74, confidence: 76, transactionsK: 1220 },
-      { fiscalYear: 2021, agency: 'Education', mission: 'Learning', spendBillions: 182, growthPct: 5.1, riskScore: 42, confidence: 88, transactionsK: 410 },
-      { fiscalYear: 2021, agency: 'Energy', mission: 'Infrastructure', spendBillions: 49, growthPct: 3.3, riskScore: 37, confidence: 91, transactionsK: 170 },
-      { fiscalYear: 2022, agency: 'Defense', mission: 'Security', spendBillions: 742, growthPct: 5.2, riskScore: 64, confidence: 82, transactionsK: 1010 },
-      { fiscalYear: 2022, agency: 'Health', mission: 'Care', spendBillions: 1398, growthPct: 6.7, riskScore: 78, confidence: 73, transactionsK: 1285 },
-      { fiscalYear: 2022, agency: 'Education', mission: 'Learning', spendBillions: 205, growthPct: 12.6, riskScore: 48, confidence: 85, transactionsK: 450 },
-      { fiscalYear: 2022, agency: 'Energy', mission: 'Infrastructure', spendBillions: 57, growthPct: 16.3, riskScore: 44, confidence: 79, transactionsK: 185 },
-      { fiscalYear: 2023, agency: 'Defense', mission: 'Security', spendBillions: 781, growthPct: 5.3, riskScore: 66, confidence: 81, transactionsK: 1045 },
-      { fiscalYear: 2023, agency: 'Health', mission: 'Care', spendBillions: 1512, growthPct: 8.2, riskScore: 83, confidence: 69, transactionsK: 1375 },
-      { fiscalYear: 2023, agency: 'Education', mission: 'Learning', spendBillions: 198, growthPct: -3.4, riskScore: 39, confidence: 90, transactionsK: 430 },
-      { fiscalYear: 2023, agency: 'Energy', mission: 'Infrastructure', spendBillions: 69, growthPct: 21.1, riskScore: 52, confidence: 72, transactionsK: 210 }
-    ]
-  },
-  {
-    id: 'ai-monitoring',
-    name: 'AI model monitoring runs',
-    description: 'A model observability dataset: run order, model, task family, accuracy, hallucination risk, latency, cost, confidence, and volume.',
-    fields: [
-      { key: 'run', label: 'Run', type: 'temporal' },
-      { key: 'model', label: 'Model', type: 'nominal' },
-      { key: 'task', label: 'Task', type: 'nominal' },
-      { key: 'accuracy', label: 'Accuracy %', type: 'quantitative' },
-      { key: 'hallucinationRisk', label: 'Hallucination Risk', type: 'quantitative' },
-      { key: 'latencyMs', label: 'Latency ms', type: 'quantitative' },
-      { key: 'costUsd', label: 'Cost $', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' },
-      { key: 'volume', label: 'Volume', type: 'quantitative' }
-    ],
-    rows: [
-      { run: 1, model: 'Orion', task: 'Extract', accuracy: 86, hallucinationRisk: 28, latencyMs: 880, costUsd: 12, confidence: 81, volume: 130 },
-      { run: 2, model: 'Orion', task: 'Reason', accuracy: 82, hallucinationRisk: 41, latencyMs: 1240, costUsd: 18, confidence: 74, volume: 118 },
-      { run: 3, model: 'Nova', task: 'Extract', accuracy: 91, hallucinationRisk: 19, latencyMs: 710, costUsd: 9, confidence: 88, volume: 145 },
-      { run: 4, model: 'Nova', task: 'Reason', accuracy: 87, hallucinationRisk: 33, latencyMs: 980, costUsd: 14, confidence: 80, volume: 136 },
-      { run: 5, model: 'Lyra', task: 'Extract', accuracy: 79, hallucinationRisk: 52, latencyMs: 650, costUsd: 7, confidence: 68, volume: 160 },
-      { run: 6, model: 'Lyra', task: 'Reason', accuracy: 74, hallucinationRisk: 63, latencyMs: 820, costUsd: 10, confidence: 59, volume: 152 },
-      { run: 7, model: 'Orion', task: 'Classify', accuracy: 89, hallucinationRisk: 23, latencyMs: 930, costUsd: 11, confidence: 84, volume: 141 },
-      { run: 8, model: 'Nova', task: 'Classify', accuracy: 94, hallucinationRisk: 15, latencyMs: 760, costUsd: 10, confidence: 91, volume: 148 }
-    ]
-  },
-  {
-    id: 'startup-metrics',
-    name: 'Startup operating metrics',
-    description: 'A SaaS-style dataset with month, product line, revenue, churn, support load, NPS, risk, and confidence.',
-    fields: [
-      { key: 'month', label: 'Month', type: 'temporal' },
-      { key: 'product', label: 'Product', type: 'nominal' },
-      { key: 'market', label: 'Market', type: 'nominal' },
-      { key: 'mrr', label: 'MRR ($K)', type: 'quantitative' },
-      { key: 'churnPct', label: 'Churn %', type: 'quantitative' },
-      { key: 'supportTickets', label: 'Support Tickets', type: 'quantitative' },
-      { key: 'nps', label: 'NPS', type: 'quantitative' },
-      { key: 'riskScore', label: 'Risk Score', type: 'quantitative' },
-      { key: 'confidence', label: 'Confidence %', type: 'quantitative' }
-    ],
-    rows: [
-      { month: 1, product: 'Core', market: 'Enterprise', mrr: 112, churnPct: 3.2, supportTickets: 84, nps: 51, riskScore: 36, confidence: 86 },
-      { month: 2, product: 'Core', market: 'Enterprise', mrr: 119, churnPct: 3.5, supportTickets: 91, nps: 49, riskScore: 39, confidence: 84 },
-      { month: 3, product: 'Core', market: 'Enterprise', mrr: 130, churnPct: 2.9, supportTickets: 88, nps: 56, riskScore: 32, confidence: 89 },
-      { month: 4, product: 'AI Add-on', market: 'Midmarket', mrr: 38, churnPct: 6.1, supportTickets: 116, nps: 37, riskScore: 66, confidence: 72 },
-      { month: 5, product: 'AI Add-on', market: 'Midmarket', mrr: 54, churnPct: 5.4, supportTickets: 142, nps: 42, riskScore: 61, confidence: 75 },
-      { month: 6, product: 'AI Add-on', market: 'Midmarket', mrr: 73, churnPct: 4.7, supportTickets: 155, nps: 45, riskScore: 55, confidence: 77 },
-      { month: 7, product: 'Services', market: 'Public Sector', mrr: 46, churnPct: 2.1, supportTickets: 52, nps: 63, riskScore: 28, confidence: 91 },
-      { month: 8, product: 'Services', market: 'Public Sector', mrr: 51, churnPct: 2.3, supportTickets: 61, nps: 61, riskScore: 31, confidence: 89 }
-    ]
-  }
-];
-
-const channelDefinitions = [
-  { key: 'time', label: 'Time / sequence', accepted: ['temporal', 'quantitative', 'nominal'], description: 'Controls the order in which rows are heard. This is the audio equivalent of the x-axis.' },
-  { key: 'pitch', label: 'Pitch / register', accepted: ['quantitative'], description: 'Maps numeric magnitude to a bounded pentatonic pitch range.' },
-  { key: 'timbre', label: 'Timbre / waveform', accepted: ['nominal'], description: 'Maps categories to oscillator character: sine, triangle, square, or sawtooth.' },
-  { key: 'chord', label: 'Chord identity', accepted: ['nominal'], description: 'Maps categories to short chord identities over a shared tonal center.' },
-  { key: 'motif', label: 'Motif identity', accepted: ['nominal'], description: 'Maps categories to a short melodic signature before the value tone.' },
-  { key: 'duration', label: 'Duration', accepted: ['quantitative'], description: 'Maps numeric magnitude to how long the main tone lasts.' },
-  { key: 'rhythm', label: 'Rhythm density', accepted: ['quantitative'], description: 'Maps numeric magnitude to pulse density layered around the main tone.' },
-  { key: 'volume', label: 'Volume / salience', accepted: ['quantitative'], description: 'Maps numeric magnitude to loudness. Used gently because volume is a weak primary data channel.' },
-  { key: 'pan', label: 'Stereo pan', accepted: ['quantitative', 'nominal'], description: 'Maps values or categories left-to-right as a redundant separation cue.' },
-  { key: 'status', label: 'Status harmony', accepted: ['quantitative'], description: 'Maps a numeric risk/status field to stable, suspended, minor, or tense harmonic cues.' }
-];
-
-const presets = {
-  'agency-spending': {
-    time: 'fiscalYear', pitch: 'spendBillions', timbre: 'agency', chord: 'mission', motif: 'agency', duration: 'growthPct', rhythm: 'transactionsK', volume: 'confidence', pan: 'agency', status: 'riskScore'
-  },
-  'ai-monitoring': {
-    time: 'run', pitch: 'accuracy', timbre: 'model', chord: 'task', motif: 'model', duration: 'latencyMs', rhythm: 'volume', volume: 'confidence', pan: 'model', status: 'hallucinationRisk'
-  },
-  'startup-metrics': {
-    time: 'month', pitch: 'mrr', timbre: 'product', chord: 'market', motif: 'product', duration: 'churnPct', rhythm: 'supportTickets', volume: 'confidence', pan: 'product', status: 'riskScore'
-  }
-};
+import { datasets } from './src/data/datasets.js';
+import { getField, extent, uniqueValues, categoryIndex } from './src/data/schema.js';
+import { channelDefinitions } from './src/spec/channels.js';
+import { presets } from './src/spec/defaultMappings.js';
+import { midiToFrequency, normalize, pentatonicMidi } from './src/transform/scales.js';
+import { orderRows } from './src/transform/transformData.js';
+import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from './src/audio/instruments.js';
+import { ensureAudioContext, now, playTone, stopAll } from './src/audio/player.js';
 
 let selectedDataset = datasets[0];
 let fieldMappings = { ...presets[selectedDataset.id] };
-let audioContext = null;
-let activeNodes = [];
 
 const datasetOptions = document.getElementById('dataset-options');
 const mappingOptions = document.getElementById('mapping-options');
@@ -227,33 +125,12 @@ function renderAll(options = {}) {
   renderExplanation();
 }
 
-function getField(key) {
-  return selectedDataset.fields.find((field) => field.key === key);
+function normalizeField(value, fieldKey) {
+  return normalize(value, extent(selectedDataset.rows, fieldKey));
 }
 
-function getNumericValues(fieldKey) {
-  return selectedDataset.rows.map((row) => Number(row[fieldKey])).filter((value) => Number.isFinite(value));
-}
-
-function extent(fieldKey) {
-  const values = getNumericValues(fieldKey);
-  if (!values.length) return [0, 1];
-  return [Math.min(...values), Math.max(...values)];
-}
-
-function normalize(value, fieldKey) {
-  const [min, max] = extent(fieldKey);
-  if (max === min) return 0.5;
-  return Math.max(0, Math.min(1, (Number(value) - min) / (max - min)));
-}
-
-function uniqueValues(fieldKey) {
-  return [...new Set(selectedDataset.rows.map((row) => row[fieldKey]))];
-}
-
-function categoryIndex(value, fieldKey) {
-  const values = uniqueValues(fieldKey);
-  return Math.max(0, values.indexOf(value));
+function fieldCategoryIndex(value, fieldKey) {
+  return categoryIndex(selectedDataset.rows, fieldKey, value);
 }
 
 function renderVisualization() {
@@ -263,8 +140,8 @@ function renderVisualization() {
   const pitchField = fieldMappings.pitch || selectedDataset.fields.find((field) => field.type === 'quantitative')?.key;
   const colorField = fieldMappings.timbre || fieldMappings.chord || fieldMappings.motif;
   const timeField = fieldMappings.time;
-  const rows = orderedRows();
-  const [min, max] = extent(pitchField);
+  const rows = orderRows(selectedDataset.rows, fieldMappings.time);
+  const [min, max] = extent(selectedDataset.rows, pitchField);
 
   const width = 720;
   const height = 260;
@@ -279,7 +156,7 @@ function renderVisualization() {
 
   const circles = points.map(({ x, y, row }) => {
     const category = colorField ? row[colorField] : '';
-    const hue = colorField ? (categoryIndex(category, colorField) * 72) % 360 : 195;
+    const hue = colorField ? (fieldCategoryIndex(category, colorField) * 72) % 360 : 195;
     return `<circle cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
@@ -297,7 +174,7 @@ function renderVisualization() {
       <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
       ${circles}
       ${labels}
-      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(pitchField)?.label || 'none'}</text>
+      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(selectedDataset, pitchField)?.label || 'none'}</text>
     </svg>
   `;
 }
@@ -324,7 +201,7 @@ function renderExplanation() {
   const items = channelDefinitions
     .filter((channel) => fieldMappings[channel.key])
     .map((channel) => {
-      const field = getField(fieldMappings[channel.key]);
+      const field = getField(selectedDataset, fieldMappings[channel.key]);
       return `<li><strong>${channel.label}</strong> uses <span>${field?.label || fieldMappings[channel.key]}</span>.</li>`;
     })
     .join('');
@@ -335,120 +212,53 @@ function renderExplanation() {
   `;
 }
 
-function orderedRows() {
-  const rows = [...selectedDataset.rows];
-  const timeField = fieldMappings.time;
-  if (!timeField) return rows;
-
-  return rows.sort((a, b) => {
-    const av = a[timeField];
-    const bv = b[timeField];
-    if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-    return String(av).localeCompare(String(bv));
-  });
-}
-
 function rowLabel(row) {
   const nominal = selectedDataset.fields.find((field) => field.type === 'nominal');
   const temporal = selectedDataset.fields.find((field) => field.type === 'temporal');
   return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 
-function ensureAudioContext() {
-  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioContext.state === 'suspended') audioContext.resume();
-}
-
-function stopAll() {
-  activeNodes.forEach((node) => {
-    try { node.stop(); } catch (error) { /* already stopped */ }
-  });
-  activeNodes = [];
-}
-
-function midiToFrequency(midi) {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
+// --- Mapping -> audio-event math. Formalized into src/compiler/ in Phase 2. ---
 
 function fieldFrequency(row) {
   const field = fieldMappings.pitch;
   if (!field) return midiToFrequency(60);
-  const scale = [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72];
-  const n = normalize(row[field], field);
-  const index = Math.max(0, Math.min(scale.length - 1, Math.round(n * (scale.length - 1))));
-  return midiToFrequency(scale[index]);
+  return midiToFrequency(pentatonicMidi(normalizeField(row[field], field)));
 }
 
 function fieldDuration(row, tempo) {
   const field = fieldMappings.duration;
   if (!field) return 0.28 / tempo;
-  return (0.16 + normalize(row[field], field) * 0.48) / tempo;
+  return (0.16 + normalizeField(row[field], field) * 0.48) / tempo;
 }
 
 function fieldVolume(row) {
   const field = fieldMappings.volume;
   if (!field) return 0.13;
-  return 0.06 + normalize(row[field], field) * 0.12;
+  return 0.06 + normalizeField(row[field], field) * 0.12;
 }
 
 function fieldPan(row) {
   const field = fieldMappings.pan;
   if (!field) return 0;
-  const fieldDef = getField(field);
-  if (fieldDef?.type === 'quantitative') return -0.75 + normalize(row[field], field) * 1.5;
-  const values = uniqueValues(field);
+  const fieldDef = getField(selectedDataset, field);
+  if (fieldDef?.type === 'quantitative') return -0.75 + normalizeField(row[field], field) * 1.5;
+  const values = uniqueValues(selectedDataset.rows, field);
   if (values.length <= 1) return 0;
-  return -0.75 + (categoryIndex(row[field], field) / (values.length - 1)) * 1.5;
+  return -0.75 + (fieldCategoryIndex(row[field], field) / (values.length - 1)) * 1.5;
 }
 
 function fieldWaveform(row) {
   const field = fieldMappings.timbre;
   if (!field) return 'sine';
-  const waves = ['sine', 'triangle', 'square', 'sawtooth'];
-  return waves[categoryIndex(row[field], field) % waves.length];
-}
-
-function createGain(time, duration, peak = 0.13) {
-  const gain = audioContext.createGain();
-  gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), time + 0.025);
-  gain.gain.setValueAtTime(Math.max(0.0002, peak), Math.max(time + 0.03, time + duration - 0.08));
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-  return gain;
-}
-
-function playTone(freq, start, duration, type = 'sine', volume = 0.13, pan = 0) {
-  const osc = audioContext.createOscillator();
-  const gain = createGain(start, duration, volume);
-  const panner = audioContext.createStereoPanner();
-
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, start);
-  panner.pan.setValueAtTime(pan, start);
-
-  osc.connect(gain);
-  gain.connect(panner);
-  panner.connect(audioContext.destination);
-
-  osc.start(start);
-  osc.stop(start + duration + 0.02);
-  activeNodes.push(osc);
+  return WAVEFORMS[fieldCategoryIndex(row[field], field) % WAVEFORMS.length];
 }
 
 function playChordForRow(row, start, tempo, pan) {
   const field = fieldMappings.chord;
   if (!field) return;
 
-  const chordBank = [
-    [48, 52, 55, 60],
-    [48, 53, 57, 60],
-    [48, 55, 62, 65],
-    [48, 50, 55, 60],
-    [48, 51, 55, 58],
-    [48, 52, 59, 64]
-  ];
-
-  const chord = chordBank[categoryIndex(row[field], field) % chordBank.length];
+  const chord = CHORD_BANK[fieldCategoryIndex(row[field], field) % CHORD_BANK.length];
   chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.26 / tempo, 'sine', 0.035, pan));
 }
 
@@ -456,16 +266,7 @@ function playMotifForRow(row, start, tempo, pan) {
   const field = fieldMappings.motif;
   if (!field) return 0;
 
-  const motifs = [
-    [60, 64, 62],
-    [60, 57, 62],
-    [55, 60, 67],
-    [64, 62, 60],
-    [60, 65, 64],
-    [57, 60, 62]
-  ];
-
-  const motif = motifs[categoryIndex(row[field], field) % motifs.length];
+  const motif = MOTIF_BANK[fieldCategoryIndex(row[field], field) % MOTIF_BANK.length];
   motif.forEach((midi, index) => {
     playTone(midiToFrequency(midi), start + index * (0.08 / tempo), 0.055 / tempo, 'triangle', 0.055, pan);
   });
@@ -477,7 +278,7 @@ function playRhythmForRow(row, start, tempo, baseFreq, pan) {
   const field = fieldMappings.rhythm;
   if (!field) return;
 
-  const pulses = 1 + Math.round(normalize(row[field], field) * 6);
+  const pulses = 1 + Math.round(normalizeField(row[field], field) * 6);
   for (let i = 0; i < pulses; i += 1) {
     playTone(baseFreq * 2, start + i * (0.055 / tempo), 0.028 / tempo, 'square', 0.025, pan);
   }
@@ -487,23 +288,15 @@ function playStatusForRow(row, start, tempo, pan) {
   const field = fieldMappings.status;
   if (!field) return;
 
-  const n = normalize(row[field], field);
-  const states = [
-    { threshold: 0.25, chord: [43, 48, 52, 55], wave: 'sine', volume: 0.025 },
-    { threshold: 0.5, chord: [43, 48, 53, 55], wave: 'triangle', volume: 0.03 },
-    { threshold: 0.75, chord: [43, 46, 50, 55], wave: 'triangle', volume: 0.035 },
-    { threshold: 1, chord: [43, 46, 49, 54], wave: 'sawtooth', volume: 0.03 }
-  ];
-
-  const state = states.find((candidate) => n <= candidate.threshold) || states[states.length - 1];
+  const state = statusStateFor(normalizeField(row[field], field));
   state.chord.forEach((midi) => playTone(midiToFrequency(midi), start, 0.42 / tempo, state.wave, state.volume, pan));
 }
 
 function playCombinedMapping() {
   const tempo = Number(tempoSlider.value);
-  const rows = orderedRows();
+  const rows = orderRows(selectedDataset.rows, fieldMappings.time);
   const step = 0.72 / tempo;
-  const startBase = audioContext.currentTime + 0.08;
+  const startBase = now() + 0.08;
 
   rows.forEach((row, index) => {
     const eventStart = startBase + index * step;
