@@ -1,6 +1,7 @@
 import { numericValues, uniqueValues, categoryIndex, getField } from '../data/schema.js';
 import { createUnitScale, pentatonicLadder, ladderMidi, lerp, midiToFrequency } from '../transform/scales.js';
 import { DEFAULT_SCALES } from '../spec/defaultScales.js';
+import { compositionGroupField, effectiveComposition, groupRows } from './composition.js';
 import { orderRows, resolveData } from '../transform/transformData.js';
 import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from '../audio/instruments.js';
 
@@ -24,7 +25,16 @@ export function compileEncodedPoints(spec) {
 
   // A sort transform defines playback order; otherwise rows follow the time field.
   const hasSort = (spec.transform || []).some((transform) => transform.type === 'sort');
-  const rows = hasSort ? [...allRows] : orderRows(allRows, encoding.time?.field, encoding.time?.type);
+  const timeOrdered = hasSort ? [...allRows] : orderRows(allRows, encoding.time?.field, encoding.time?.type);
+
+  // Grouped composition modes reorder points group-major; a mode whose group
+  // field is missing falls back to plain sequence order.
+  const requestedField = compositionGroupField(spec.composition);
+  const groupFieldExists = Boolean(requestedField && dataset.fields.some((field) => field.key === requestedField));
+  const groupCount = groupFieldExists ? new Set(timeOrdered.map((row) => String(row[requestedField]))).size : 0;
+  const composition = effectiveComposition(spec.composition, groupCount, groupFieldExists);
+  const grouped = composition.field ? groupRows(timeOrdered, composition.field, encoding.time?.field) : null;
+  const entries = grouped ? grouped.ordered : timeOrdered.map((row) => ({ row }));
 
   // Category identity (timbre, chord, motif, nominal pan) is keyed to the raw
   // data whenever the field exists there, so filtering out one category does
@@ -51,7 +61,7 @@ export function compileEncodedPoints(spec) {
   const identityField = encoding.timbre?.field || encoding.chord?.field || encoding.motif?.field || null;
   const timeField = encoding.time?.field || null;
 
-  return rows.map((row, index) => {
+  return entries.map(({ row, group, groupIndex, groupPosition, groupSize, slot }, index) => {
     const explanation = {};
     const note = (channel, raw, scaled) => {
       if (encoding[channel]?.field != null) explanation[channel] = { field: encoding[channel].field, raw, scaled };
@@ -117,17 +127,23 @@ export function compileEncodedPoints(spec) {
 
     const labelParts = [
       timeField ? row[timeField] : `#${index + 1}`,
-      identityField ? row[identityField] : null
+      identityField ? row[identityField] : null,
+      group !== undefined && composition.field !== identityField ? group : null
     ].filter((part) => part !== null && part !== undefined);
+
+    const position = {
+      sequenceIndex: index,
+      normalizedX: entries.length <= 1 ? 0 : index / (entries.length - 1),
+      label: labelParts.join(' · ')
+    };
+    if (group !== undefined) {
+      Object.assign(position, { group, groupIndex, groupPosition, groupSize, slot, slotCount: grouped.slotCount });
+    }
 
     return {
       index,
       row,
-      position: {
-        sequenceIndex: index,
-        normalizedX: rows.length <= 1 ? 0 : index / (rows.length - 1),
-        label: labelParts.join(' · ')
-      },
+      position,
       audio: {
         midi,
         pitchHz: Number(midiToFrequency(midi).toFixed(2)),

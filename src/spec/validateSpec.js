@@ -2,6 +2,35 @@ import { channelDefinitions } from './channels.js';
 import { SCALABLE_CHANNELS } from './defaultScales.js';
 import { RANGE_LIMITS, SCALE_TYPES } from '../transform/scales.js';
 import { resolveData } from '../transform/transformData.js';
+import { COMPOSITION_MODES, MAX_OVERLAY_GROUPS, compositionGroupField } from '../compiler/composition.js';
+
+function validateComposition(spec, resolved, errors) {
+  const composition = spec.composition;
+  if (!composition || composition.mode === undefined) return;
+
+  if (!COMPOSITION_MODES.includes(composition.mode)) {
+    errors.push(`composition.mode must be one of ${COMPOSITION_MODES.join(', ')}.`);
+    return;
+  }
+  if (composition.mode === 'sequence') return;
+
+  const field = compositionGroupField(composition);
+  const key = composition.mode === 'overlay' ? 'overlayBy' : 'groupBy';
+  if (!field) {
+    errors.push(`composition.${key} is required for ${composition.mode} mode.`);
+    return;
+  }
+  if (!resolved.fields.some((candidate) => candidate.key === field)) {
+    errors.push(`composition.${key} references unknown field "${field}".`);
+    return;
+  }
+  if (composition.mode === 'overlay') {
+    const groups = new Set(resolved.rows.map((row) => String(row[field]))).size;
+    if (groups > MAX_OVERLAY_GROUPS) {
+      errors.push(`Overlay mode supports at most ${MAX_OVERLAY_GROUPS} groups; "${field}" has ${groups}.`);
+    }
+  }
+}
 
 function validateScale(channelKey, scale, errors) {
   if (!scale || typeof scale !== 'object') return;
@@ -54,6 +83,8 @@ export function validateSpec(spec) {
       errors.push('The transforms leave no rows to sonify.');
     }
   }
+
+  if (resolved) validateComposition(spec, resolved, errors);
 
   if (!spec.encoding || typeof spec.encoding !== 'object') {
     errors.push('encoding must be an object.');

@@ -399,7 +399,9 @@ input:focus-visible,
 
 .transform-form select,
 .transform-form input[type='text'],
-.transform-form input[type='number'] {
+.transform-form input[type='number'],
+#composition-mode,
+#composition-group {
   width: 100%;
   min-width: 0;
   padding: 6px 8px;
@@ -411,7 +413,9 @@ input:focus-visible,
 }
 
 .transform-form select:focus-visible,
-.transform-form input:focus-visible {
+.transform-form input:focus-visible,
+#composition-mode:focus-visible,
+#composition-group:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -437,4 +441,8 @@ input:focus-visible,
   gap: 6px;
   color: inherit;
   font-size: 0.9rem;
+}
+
+.composition-note {
+  color: var(--warn);
 }

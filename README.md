@@ -20,10 +20,12 @@ static server (or the Vercel deployment) and you can:
   duration, rhythm density, volume, pan, and status harmony
 - play the combined sonification through Web Audio
 
-The roadmap (see `docs/SONIFY_ENGINEERING_PLAN.md`) adds a declarative Sonify
-spec, interactive scrubbing and point inspection, comparison anchors, queue
-playback, and first-class Vega-Lite import with synchronized dual (visual +
-audio) rendering.
+Beyond the mapping lab, the app has a declarative Sonify spec, interactive
+scrubbing and point inspection, comparison anchors, queue playback with region
+zoom, auditory legends, first-class Vega-Lite import with synchronized dual
+(visual + audio) rendering, scale controls, composition modes, and a data
+transform layer. All nine phases of `docs/SONIFY_ENGINEERING_PLAN.md` are
+shipped.
 
 ## Vega-Lite and Altair
 
@@ -57,6 +59,40 @@ chart = alt.Chart(source).mark_bar().encode(x="a", y="b")
 print(chart.to_dict())  # paste this JSON into Sonify
 ```
 
+## Shaping the sound
+
+**Scales.** Every mapped numeric channel (pitch, duration, volume, rhythm,
+quantitative pan, status) has a scale you can edit in "Shape the scales":
+polarity (higher value goes higher or lower), scale type (linear, square root,
+logarithmic, signed log), a bounded range, and a data domain (blank means
+auto). Ranges are always bounded per the design constitution. The point
+inspector shows raw and scaled values, and the legend explains reversed or
+non-linear scales.
+
+**Composition.** "Composition" chooses how rows arrange in time on Play:
+
+- *Row sequence* - one row after another (default).
+- *Group sequence* - each group plays in turn with a pause between groups.
+- *Repeat by category* - each group's name is spoken, then its rows play.
+- *Overlay by category* - up to four groups play together, one time step at a
+  time, simplified to their main tones (timbre and pan keep them apart).
+
+Grouped modes also reorder scrubbing so you walk a whole group at a time.
+
+**Transforms.** "Transform the data" runs filter, sort, aggregate, and bin
+steps over the rows before they are sonified. Steps run top to bottom; the data
+preview, mapping choices, spec, and audio all use the transformed rows. A sort
+step sets playback order. For example, a histogram is *bin* a numeric field,
+then *aggregate* a count grouped by the bin: map the bin to time and the count
+to pitch or rhythm. Transforms live in the spec as `transform: [...]`:
+
+```json
+{ "type": "filter", "field": "fiscalYear", "op": ">=", "value": 2022 }
+{ "type": "sort", "field": "riskScore", "order": "descending" }
+{ "type": "aggregate", "groupBy": ["agency"], "fields": [{ "field": "spendBillions", "op": "sum", "as": "totalSpend" }] }
+{ "type": "bin", "field": "riskScore", "step": 10, "as": "riskBin" }
+```
+
 ## Design constitution
 
 `docs/SONIFICATION_GRAMMAR.md` governs every audio decision: bounded pitch
@@ -67,7 +103,7 @@ cleverness.
 ## Architecture
 
 ```text
-UI state -> Sonify spec -> encoded points -> interactive render | queue playback | legend | exports
+UI state -> Sonify spec -> transformed data -> encoded points -> interactive render | queue playback | legend | exports
 ```
 
 The Sonify spec is the single source of truth; no audio path bypasses the
@@ -82,6 +118,15 @@ No build step. Serve the repo root with any static server:
 ```bash
 python3 -m http.server 8080
 # open http://localhost:8080
+```
+
+## Tests
+
+The spec, scale, transform, compiler, and composition logic are pure modules
+covered by Node's built-in test runner (no dependencies):
+
+```bash
+npm test
 ```
 
 ## Legacy prototypes

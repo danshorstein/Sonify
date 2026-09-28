@@ -95,6 +95,25 @@
         <p id="scale-message" class="import-error" role="alert"></p>
       </section>
 
+      <section class="panel" aria-labelledby="composition-title">
+        <h2 id="composition-title">Composition</h2>
+        <p class="description">
+          How the rows are arranged in time when you press Play. Grouped modes also change the order you scrub through the points.
+        </p>
+        <div class="transform-form-grid">
+          <div class="scale-row">
+            <label for="composition-mode">Playback mode</label>
+            <select id="composition-mode"></select>
+          </div>
+          <div class="scale-row">
+            <label for="composition-group">Group by</label>
+            <select id="composition-group"></select>
+          </div>
+        </div>
+        <p id="composition-description" class="description"></p>
+        <p id="composition-note" class="import-error" role="status"></p>
+      </section>
+
       <section class="panel" aria-labelledby="import-title">
         <h2 id="import-title">Import a Vega-Lite or Altair chart</h2>
         <p class="description import-description">

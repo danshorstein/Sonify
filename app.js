@@ -6,6 +6,7 @@ import { buildSpec } from './src/spec/buildSpec.js';
 import { SCALABLE_CHANNELS, defaultScale } from './src/spec/defaultScales.js';
 import { RANGE_LIMITS, SCALE_TYPES, resolveDomain } from './src/transform/scales.js';
 import { applyTransforms, FILTER_OPS, AGGREGATE_OPS } from './src/transform/transformData.js';
+import { COMPOSITION_MODES, MODE_LABELS, MAX_OVERLAY_GROUPS, effectiveComposition, distinctGroups } from './src/compiler/composition.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
 import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
@@ -31,6 +32,7 @@ const state = {
   scales: {},
   transforms: [],
   suggested: {},
+  composition: { mode: 'sequence', field: null },
   resolved: { rows: datasets[0].rows, fields: datasets[0].fields, errors: [], steps: [] },
   activeMappings: {}
 };
@@ -82,6 +84,10 @@ const transformType = document.getElementById('transform-type');
 const transformFields = document.getElementById('transform-fields');
 const transformMessage = document.getElementById('transform-message');
 const clearTransformsButton = document.getElementById('clear-transforms');
+const compositionMode = document.getElementById('composition-mode');
+const compositionGroup = document.getElementById('composition-group');
+const compositionDescription = document.getElementById('composition-description');
+const compositionNote = document.getElementById('composition-note');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -101,6 +107,8 @@ function init() {
   renderAll();
 
   resetScalesButton.addEventListener('click', resetScales);
+  compositionMode.addEventListener('change', changeCompositionMode);
+  compositionGroup.addEventListener('change', changeCompositionGroup);
   transformType.addEventListener('change', renderTransformFields);
   transformForm.addEventListener('submit', addTransform);
   clearTransformsButton.addEventListener('click', clearTransforms);
@@ -474,12 +482,25 @@ function importVegaLite() {
   state.scales = {};
   state.transforms = [];
   state.suggested = {};
+  state.composition = { mode: 'sequence', field: null };
   state.currentIndex = 0;
   state.anchorIndex = null;
   state.region = null;
   state.zoomed = false;
   renderAll();
   announce(`Imported ${result.dataset.name}: ${result.dataset.rows.length} points. Suggested mappings applied. Focus the chart to explore.`);
+}
+
+// The group-by field only applies to grouped modes; overlay reads overlayBy,
+// group and repeat read groupBy. Fields must still exist after transforms.
+function compositionSpec() {
+  const { mode, field } = state.composition;
+  const usable = field && state.resolved.fields.some((candidate) => candidate.key === field) ? field : null;
+  return {
+    mode,
+    groupBy: mode === 'group' || mode === 'repeat' ? usable : null,
+    overlayBy: mode === 'overlay' ? usable : null
+  };
 }
 
 // Mappings that are valid for the transformed fields. state.mappings keeps
@@ -504,11 +525,13 @@ function activeMappingsFor(fields, suggested = state.suggested) {
 function recompile() {
   state.resolved = applyTransforms(state.dataset.rows, state.transforms, state.dataset.fields);
   state.activeMappings = activeMappingsFor(state.resolved.fields);
+  ensureCompositionField();
   state.spec = buildSpec(state.dataset, state.activeMappings, {
     tempo: tempo(),
     articulation: state.dataset.articulation,
     scales: state.scales,
-    transforms: state.transforms
+    transforms: state.transforms,
+    composition: compositionSpec()
   });
   const validation = validateSpec(state.spec);
   if (!validation.valid) {
@@ -555,6 +578,7 @@ function renderDatasetButtons() {
       state.scales = {};
       state.transforms = [];
       state.suggested = {};
+      state.composition = { mode: 'sequence', field: null };
       state.mappings = dataset.id === 'imported' ? { ...state.imported.mappings } : { ...presets[dataset.id] };
       state.currentIndex = 0;
       state.anchorIndex = null;
@@ -942,6 +966,70 @@ function resetPosition() {
   state.zoomed = false;
 }
 
+const MODE_DESCRIPTIONS = {
+  sequence: 'Rows play one after another in the order shown in the data preview.',
+  group: 'All rows of one group play, a short pause, then the next group. Scrubbing walks group by group.',
+  repeat: 'Each group\'s name is spoken, then its rows play, so you always know which group you are hearing.',
+  overlay: `Groups play together, one time step at a time. Limited to ${MAX_OVERLAY_GROUPS} groups and simplified to each voice's main tone so the mix stays clear; timbre and pan keep groups apart.`
+};
+
+function groupableFields() {
+  return state.resolved.fields.filter((field) => field.type === 'nominal');
+}
+
+// Keep the group-by field usable after transforms or a mode switch: prefer
+// the timbre field, then the first category field.
+function ensureCompositionField() {
+  const fields = groupableFields();
+  if (state.composition.mode === 'sequence' || fields.some((field) => field.key === state.composition.field)) return;
+  const timbre = state.activeMappings.timbre;
+  state.composition.field = (fields.find((field) => field.key === timbre) || fields[0])?.key || null;
+}
+
+function renderComposition() {
+  const fields = groupableFields();
+  const { mode } = state.composition;
+
+  compositionMode.innerHTML = COMPOSITION_MODES
+    .map((candidate) => `<option value="${candidate}" ${candidate === mode ? 'selected' : ''}>${MODE_LABELS[candidate]}</option>`)
+    .join('');
+  compositionGroup.innerHTML = fields.length
+    ? fields.map((field) => `<option value="${escapeHtml(field.key)}" ${field.key === state.composition.field ? 'selected' : ''}>${escapeHtml(field.label)}</option>`).join('')
+    : '<option value="">No category fields</option>';
+  compositionGroup.disabled = mode === 'sequence' || !fields.length;
+  compositionDescription.textContent = MODE_DESCRIPTIONS[mode];
+  compositionNote.classList.add('composition-note');
+  compositionNote.textContent = compositionFallbackNote();
+}
+
+// Why playback differs from the chosen mode (no group field, too many groups
+// for an overlay), so the fallback is never a silent surprise.
+function compositionFallbackNote() {
+  const spec = compositionSpec();
+  if (spec.mode === 'sequence') return '';
+  const field = spec.groupBy || spec.overlayBy;
+  const groupCount = field ? new Set(state.resolved.rows.map((row) => String(row[field]))).size : 0;
+  return effectiveComposition(spec, groupCount, Boolean(field)).note || '';
+}
+
+function changeCompositionMode() {
+  state.composition.mode = compositionMode.value;
+  applyCompositionChange(`Playback mode: ${MODE_LABELS[state.composition.mode]}.`);
+}
+
+function changeCompositionGroup() {
+  state.composition.field = compositionGroup.value || null;
+  const label = state.resolved.fields.find((field) => field.key === state.composition.field)?.label;
+  applyCompositionChange(`Grouping by ${label}.`);
+}
+
+function applyCompositionChange(message) {
+  resetPosition();
+  renderAll({ skipControls: true, skipScaleControls: true });
+  const note = compositionNote.textContent;
+  announce(`${message} ${state.points.length} points.${note ? ` ${note}` : ''}`);
+}
+
 function renderAll(options = {}) {
   recompile();
 
@@ -951,6 +1039,7 @@ function renderAll(options = {}) {
   }
   if (!options.skipScaleControls) renderScaleControls();
   if (!options.skipControls) renderTransformPanel();
+  renderComposition();
 
   const transformed = state.transforms.length > 0;
   chartType.textContent = `${state.resolved.rows.length} rows · ${state.resolved.fields.length} fields${transformed ? ` (from ${state.dataset.rows.length} rows)` : ''}`;
@@ -990,11 +1079,17 @@ function renderVisualization() {
   const height = 260;
   const pad = 26;
 
+  // Overlay aligns groups on shared time steps; every other mode lays points
+  // out in playback order.
+  const overlayView = activeCompositionMode() === 'overlay';
   const points = state.points.map((point, index) => {
-    const x = pad + (index / Math.max(1, state.points.length - 1)) * (width - pad * 2);
+    const unit = overlayView
+      ? point.position.slot / Math.max(1, point.position.slotCount - 1)
+      : index / Math.max(1, state.points.length - 1);
+    const x = pad + unit * (width - pad * 2);
     const value = Number(point.row[pitchField]);
     const y = height - pad - ((value - min) / Math.max(1, max - min)) * (height - pad * 2);
-    return { x, y, row: point.row };
+    return { x, y, row: point.row, group: point.position.group };
   });
 
   state.vizXs = points.map((point) => point.x);
@@ -1005,7 +1100,16 @@ function renderVisualization() {
     return `<circle class="viz-point" data-index="${index}" cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
-  const line = points.map((point) => `${point.x},${point.y}`).join(' ');
+  // One line per group so grouped playback does not draw a line between groups.
+  const runs = [];
+  points.forEach((point) => {
+    const last = runs[runs.length - 1];
+    if (last && last.group === point.group) last.points.push(point);
+    else runs.push({ group: point.group, points: [point] });
+  });
+  const lines = runs
+    .map((run) => `<polyline points="${run.points.map((point) => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />`)
+    .join('');
   const labels = points.map(({ x, row }, index) => {
     if (index % 2 === 1 && points.length > 8) return '';
     const text = timeField ? row[timeField] : index + 1;
@@ -1017,7 +1121,7 @@ function renderVisualization() {
       <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#2f3a4a" />
       <rect id="viz-region" y="${pad}" height="${height - pad * 2}" fill="rgba(125, 211, 252, 0.14)" stroke="rgba(125, 211, 252, 0.5)" stroke-dasharray="3 3" visibility="hidden" />
-      <polyline points="${line}" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
+      ${lines}
       <line id="viz-cursor" class="viz-cursor" x1="0" y1="${pad}" x2="0" y2="${height - pad}" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.9" />
       ${circles}
       ${labels}
@@ -1270,9 +1374,13 @@ function renderExplanation() {
     })
     .join('');
 
+  const mode = activeCompositionMode();
+  const modeLine = mode === 'sequence' ? '' : `<p><strong>Playback:</strong> ${MODE_LABELS[mode]}, grouped by ${escapeHtml(getField(state.resolved, state.spec.composition.groupBy || state.spec.composition.overlayBy)?.label || '')}.</p>`;
+
   explanation.innerHTML = `
     <p>This mapping is row-based: each data row becomes an audio event. The active fields are layered together rather than all using the same default note.</p>
     <ul>${items}</ul>
+    ${modeLine}
   `;
 }
 
@@ -1317,6 +1425,13 @@ function rowLabel(row) {
   return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 
+// What playback will do given the compiled points, after fallbacks.
+function activeCompositionMode() {
+  const groups = distinctGroups(state.points);
+  const grouped = groups.length > 0 && state.points.every((point) => point.position.group !== undefined);
+  return grouped ? effectiveComposition(state.spec.composition, groups.length, true).mode : 'sequence';
+}
+
 function playFromCurrent() {
   if (!state.points.length) return;
   stopSpeech();
@@ -1326,7 +1441,8 @@ function playFromCurrent() {
   const queue = compileAudioQueue(state.points, state.spec, {
     fromIndex: state.currentIndex,
     region: bounds,
-    dilate: state.zoomed
+    dilate: state.zoomed,
+    tempo: tempo()
   });
 
   playQueue(queue, {
@@ -1336,6 +1452,9 @@ function playFromCurrent() {
       renderPointInspector();
       updateCursor();
     },
+    // Group names are spoken (not announced via aria-live) so they line up
+    // with the audio instead of queueing behind screen-reader output.
+    onSpeech: (text) => speak(text, { interrupt: false }),
     onDone: () => announce('Finished.')
   });
 

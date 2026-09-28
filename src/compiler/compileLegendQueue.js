@@ -2,6 +2,7 @@ import { uniqueValues } from '../data/schema.js';
 import { resolveData } from '../transform/transformData.js';
 import { WAVEFORMS, MOTIF_BANK, statusStateFor } from '../audio/instruments.js';
 import { DEFAULT_SCALES } from '../spec/defaultScales.js';
+import { distinctGroups, effectiveComposition } from './composition.js';
 
 const SCALE_PHRASES = { sqrt: 'a square-root scale', log: 'a logarithmic scale', symlog: 'a signed-logarithmic scale' };
 
@@ -40,11 +41,33 @@ function scaleNote(scale) {
   return parts.length ? ` This mapping is ${parts.join(' and ')}.` : '';
 }
 
+function describeComposition(spec, points) {
+  const groups = distinctGroups(points);
+  const grouped = groups.length > 0 && points.every((point) => point.position?.group !== undefined);
+  if (!grouped) return null;
+
+  const { mode, field } = effectiveComposition(spec.composition, groups.length, true);
+  const label = fieldLabel(spec, field);
+  if (mode === 'group') {
+    return `Playback is grouped by ${label}: ${groups.join(', ')}. Each group plays in turn, with a short pause between groups.`;
+  }
+  if (mode === 'repeat') {
+    return `Playback repeats by ${label}: ${groups.join(', ')}. Each group's name is spoken, then its data plays.`;
+  }
+  if (mode === 'overlay') {
+    return `Playback overlays ${label}: ${groups.join(', ')} play together, one step at a time. Voices are simplified to their main tone, and timbre and stereo position keep them apart.`;
+  }
+  return null;
+}
+
 export function compileLegendQueue(spec, points) {
   const items = [];
   const encoding = spec.encoding;
   const say = (text) => items.push({ kind: 'speech', text });
   const play = (events, span) => items.push({ kind: 'audio', events, span });
+
+  const composition = describeComposition(spec, points);
+  if (composition) say(composition);
 
   if (encoding.pitch && points.length) {
     let minPoint = points[0];

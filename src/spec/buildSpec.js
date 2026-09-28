@@ -36,10 +36,10 @@ export function buildSpec(dataset, fieldMappings, config = {}) {
     },
     encoding,
     composition: {
-      mode: 'sequence',
+      mode: config.composition?.mode || 'sequence',
       stepSeconds: 0.72,
-      groupBy: null,
-      overlayBy: null
+      groupBy: config.composition?.groupBy ?? null,
+      overlayBy: config.composition?.overlayBy ?? null
     },
     interaction: {
       mode: 'scrub',
