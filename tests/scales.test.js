@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUnitScale, pentatonicLadder, ladderMidi, lerp, PENTATONIC_MIDI, effectiveScaleType } from '../src/transform/scales.js';
+import { createUnitScale, pentatonicLadder, ladderMidi, lerp, effectiveScaleType } from '../src/transform/scales.js';
+
+const PENTATONIC_MIDI = [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72];
 import { validateSpec } from '../src/spec/validateSpec.js';
 import { compileLegendQueue } from '../src/compiler/compileLegendQueue.js';
 import { compileAgency } from './helpers.js';

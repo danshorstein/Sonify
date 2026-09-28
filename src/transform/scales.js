@@ -3,7 +3,6 @@
 // unit position is mapped into a bounded range, and pitch lands on a
 // pentatonic MIDI ladder inside that range. Only MIDI notes become frequencies.
 
-export const PENTATONIC_MIDI = [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72];
 const PENTATONIC_PITCH_CLASSES = [0, 2, 4, 7, 9];
 
 export const SCALE_TYPES = ['linear', 'sqrt', 'log', 'symlog'];
@@ -21,16 +20,6 @@ export const RANGE_LIMITS = {
 
 export function midiToFrequency(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-export function normalize(value, [min, max]) {
-  if (max === min) return 0.5;
-  return Math.max(0, Math.min(1, (Number(value) - min) / (max - min)));
-}
-
-export function pentatonicMidi(normalized) {
-  const index = Math.max(0, Math.min(PENTATONIC_MIDI.length - 1, Math.round(normalized * (PENTATONIC_MIDI.length - 1))));
-  return PENTATONIC_MIDI[index];
 }
 
 // The pentatonic notes available inside a MIDI range. A range too narrow to

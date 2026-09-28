@@ -759,8 +759,8 @@ function handleScaleChange(control) {
     const min = numberOrNull(document.getElementById(`scale-${channel}-domain-min`).value);
     const max = numberOrNull(document.getElementById(`scale-${channel}-domain-max`).value);
     if (min !== null && max !== null && min >= max) {
+      // scaleMessage is a role="alert" region; it announces itself.
       scaleMessage.textContent = `${label} domain minimum must be below the maximum.`;
-      announce(scaleMessage.textContent);
       return;
     }
     if (min === null && max === null) {
@@ -895,9 +895,9 @@ function readTransformForm() {
   return bin;
 }
 
+// transformMessage is a role="alert" region; it announces itself.
 function transformFail(message) {
   transformMessage.textContent = message;
-  announce(message);
 }
 
 // After an aggregate, time and pitch usually lose their fields. Point them at
