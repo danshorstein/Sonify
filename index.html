@@ -46,6 +46,21 @@
         </article>
       </section>
 
+      <section class="panel" aria-labelledby="scale-title">
+        <div class="section-header">
+          <h2 id="scale-title">Shape the scales</h2>
+          <button id="reset-scales" class="secondary-button">Reset scales</button>
+        </div>
+        <p class="description">
+          Each mapped numeric channel has a scale: <strong>polarity</strong> (do higher values go higher or lower?),
+          <strong>scale type</strong> (linear, square root, or logarithmic spacing), a bounded <strong>range</strong>
+          (how far the audio moves), and a <strong>domain</strong> (which data values span that range; blank means auto).
+          Changes apply immediately and you hear the current point.
+        </p>
+        <div id="scale-controls" class="scale-grid"></div>
+        <p id="scale-message" class="import-error" role="alert"></p>
+      </section>
+
       <section class="panel" aria-labelledby="import-title">
         <h2 id="import-title">Import a Vega-Lite or Altair chart</h2>
         <p class="description import-description">

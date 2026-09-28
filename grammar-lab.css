@@ -278,3 +278,70 @@ input:focus-visible,
     columns: 1;
   }
 }
+
+/* Scale controls (Phase 7) */
+.scale-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.scale-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  min-width: 0;
+}
+
+.scale-card legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.scale-card legend span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.scale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.scale-row label,
+.scale-row .scale-row-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.scale-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.scale-card select,
+.scale-card input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+}
+
+.scale-card select:focus-visible,
+.scale-card input:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+.scale-empty {
+  color: var(--muted);
+}

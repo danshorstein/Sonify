@@ -1,8 +1,10 @@
 import { datasets } from './src/data/datasets.js';
-import { getField, extent, categoryIndex } from './src/data/schema.js';
+import { getField, extent, categoryIndex, numericValues } from './src/data/schema.js';
 import { channelDefinitions } from './src/spec/channels.js';
 import { presets } from './src/spec/defaultMappings.js';
 import { buildSpec } from './src/spec/buildSpec.js';
+import { SCALABLE_CHANNELS, defaultScale } from './src/spec/defaultScales.js';
+import { RANGE_LIMITS, SCALE_TYPES, resolveDomain } from './src/transform/scales.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
 import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
@@ -24,7 +26,8 @@ const state = {
   zoomed: false,
   vizXs: [],
   lastScrubAudioAt: 0,
-  imported: null
+  imported: null,
+  scales: {}
 };
 
 // vega-embed view state for imported charts (Amendment 4 dual rendering).
@@ -64,6 +67,9 @@ const importError = document.getElementById('import-error');
 const helpOverlay = document.getElementById('help-overlay');
 const helpTableBody = document.querySelector('#help-table tbody');
 const closeHelpButton = document.getElementById('close-help');
+const scaleControls = document.getElementById('scale-controls');
+const scaleMessage = document.getElementById('scale-message');
+const resetScalesButton = document.getElementById('reset-scales');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -81,6 +87,7 @@ function init() {
   renderHelpTable();
   renderAll();
 
+  resetScalesButton.addEventListener('click', resetScales);
   playButton.addEventListener('click', playFromCurrent);
   stopButton.addEventListener('click', stopEverything);
   document.getElementById('legend-button').addEventListener('click', playLegend);
@@ -448,6 +455,7 @@ function importVegaLite() {
   state.imported = result;
   state.dataset = result.dataset;
   state.mappings = { ...result.mappings };
+  state.scales = {};
   state.currentIndex = 0;
   state.anchorIndex = null;
   state.region = null;
@@ -459,7 +467,8 @@ function importVegaLite() {
 function recompile() {
   state.spec = buildSpec(state.dataset, state.mappings, {
     tempo: tempo(),
-    articulation: state.dataset.articulation
+    articulation: state.dataset.articulation,
+    scales: state.scales
   });
   const validation = validateSpec(state.spec);
   if (!validation.valid) {
@@ -503,6 +512,7 @@ function renderDatasetButtons() {
     button.innerHTML = `<strong>${dataset.name}</strong><span>${dataset.description}</span>`;
     button.addEventListener('click', () => {
       state.dataset = dataset;
+      state.scales = {};
       state.mappings = dataset.id === 'imported' ? { ...state.imported.mappings } : { ...presets[dataset.id] };
       state.currentIndex = 0;
       state.anchorIndex = null;
@@ -539,11 +549,179 @@ function renderFieldMappingControls() {
     const select = wrapper.querySelector('select');
     select.addEventListener('change', (event) => {
       state.mappings[channel.key] = event.target.value === 'none' ? null : event.target.value;
+      // A manual domain describes the old field's values, not the new one's.
+      if (state.scales[channel.key]) delete state.scales[channel.key].domain;
       renderAll({ skipControls: true });
     });
 
     mappingOptions.appendChild(wrapper);
   });
+}
+
+const SCALE_TYPE_LABELS = { linear: 'Linear', sqrt: 'Square root', log: 'Logarithmic', symlog: 'Signed log' };
+const RANGE_UNITS = { pitch: 'MIDI note', duration: 'seconds', volume: 'gain', pan: '-1 left, 1 right', rhythm: 'pulses' };
+const RANGE_STEPS = { pitch: 1, duration: 0.01, volume: 0.01, pan: 0.05, rhythm: 1 };
+const POLARITY_LABELS = {
+  pitch: ['Higher value, higher pitch', 'Higher value, lower pitch'],
+  duration: ['Higher value, longer tone', 'Higher value, shorter tone'],
+  volume: ['Higher value, louder', 'Higher value, softer'],
+  pan: ['Higher value, more right', 'Higher value, more left'],
+  rhythm: ['Higher value, denser pulses', 'Higher value, sparser pulses'],
+  status: ['Higher value, more tense', 'Higher value, more stable']
+};
+
+function effectiveScale(channel) {
+  return { ...defaultScale(channel), ...(state.scales[channel] || {}) };
+}
+
+function patchScale(channel, patch) {
+  state.scales[channel] = { ...(state.scales[channel] || {}), ...patch };
+}
+
+function scaledChannels() {
+  return SCALABLE_CHANNELS.filter((channel) => {
+    const key = state.mappings[channel];
+    if (!key) return false;
+    // Nominal pan spreads categories evenly; there is no numeric scale to shape.
+    if (channel === 'pan') return getField(state.dataset, key)?.type === 'quantitative';
+    return true;
+  });
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function numberOrNull(raw) {
+  return raw === '' || raw === null || raw === undefined || !Number.isFinite(Number(raw)) ? null : Number(raw);
+}
+
+function renderScaleControls() {
+  const channels = scaledChannels();
+
+  if (!channels.length) {
+    scaleControls.innerHTML = '<p class="description scale-empty">Map a numeric field to pitch, duration, volume, rhythm, pan, or status to shape its scale.</p>';
+    return;
+  }
+
+  scaleControls.innerHTML = channels.map((channel) => {
+    const definition = channelDefinitions.find((candidate) => candidate.key === channel);
+    const field = getField(state.dataset, state.mappings[channel]);
+    const scale = effectiveScale(channel);
+    const [autoMin, autoMax] = resolveDomain('auto', numericValues(state.dataset.rows, field.key));
+    const domain = Array.isArray(scale.domain) ? scale.domain : [null, null];
+    const id = (name) => `scale-${channel}-${name}`;
+    const [positiveLabel, negativeLabel] = POLARITY_LABELS[channel];
+
+    const rangeRow = scale.range ? `
+      <div class="scale-row">
+        <span class="scale-row-label" id="${id('range-label')}">Range (${RANGE_UNITS[channel]})</span>
+        <div class="scale-pair" role="group" aria-labelledby="${id('range-label')}">
+          <input id="${id('range-low')}" type="number" data-channel="${channel}" data-role="range-low" aria-label="${definition.label} range low"
+            min="${RANGE_LIMITS[channel][0]}" max="${RANGE_LIMITS[channel][1]}" step="${RANGE_STEPS[channel]}" value="${scale.range[0]}" />
+          <span aria-hidden="true">to</span>
+          <input id="${id('range-high')}" type="number" data-channel="${channel}" data-role="range-high" aria-label="${definition.label} range high"
+            min="${RANGE_LIMITS[channel][0]}" max="${RANGE_LIMITS[channel][1]}" step="${RANGE_STEPS[channel]}" value="${scale.range[1]}" />
+        </div>
+      </div>` : '';
+
+    return `
+      <fieldset class="scale-card">
+        <legend>${escapeHtml(definition.label)} <span>${escapeHtml(field.label)}</span></legend>
+        <div class="scale-row">
+          <label for="${id('polarity')}">Polarity</label>
+          <select id="${id('polarity')}" data-channel="${channel}" data-role="polarity">
+            <option value="positive" ${scale.polarity !== 'negative' ? 'selected' : ''}>${positiveLabel}</option>
+            <option value="negative" ${scale.polarity === 'negative' ? 'selected' : ''}>${negativeLabel}</option>
+          </select>
+        </div>
+        <div class="scale-row">
+          <label for="${id('type')}">Scale type</label>
+          <select id="${id('type')}" data-channel="${channel}" data-role="type">
+            ${SCALE_TYPES.map((type) => `<option value="${type}" ${scale.scaleType === type ? 'selected' : ''}>${SCALE_TYPE_LABELS[type]}</option>`).join('')}
+          </select>
+        </div>
+        ${rangeRow}
+        <div class="scale-row">
+          <span class="scale-row-label" id="${id('domain-label')}">Domain (data values)</span>
+          <div class="scale-pair" role="group" aria-labelledby="${id('domain-label')}">
+            <input id="${id('domain-min')}" type="number" step="any" data-channel="${channel}" data-role="domain-min" aria-label="${definition.label} domain minimum, auto is ${autoMin}"
+              placeholder="auto ${autoMin}" value="${domain[0] ?? ''}" />
+            <span aria-hidden="true">to</span>
+            <input id="${id('domain-max')}" type="number" step="any" data-channel="${channel}" data-role="domain-max" aria-label="${definition.label} domain maximum, auto is ${autoMax}"
+              placeholder="auto ${autoMax}" value="${domain[1] ?? ''}" />
+          </div>
+        </div>
+      </fieldset>`;
+  }).join('');
+
+  scaleControls.querySelectorAll('select, input').forEach((control) => {
+    control.addEventListener('change', () => handleScaleChange(control));
+  });
+}
+
+function handleScaleChange(control) {
+  const { channel, role } = control.dataset;
+  const label = channelDefinitions.find((candidate) => candidate.key === channel).label;
+  scaleMessage.textContent = '';
+  let message = '';
+
+  if (role === 'polarity') {
+    patchScale(channel, { polarity: control.value });
+    message = `${label} polarity: ${control.selectedOptions[0].textContent}.`;
+  } else if (role === 'type') {
+    patchScale(channel, { scaleType: control.value });
+    message = `${label} scale type: ${SCALE_TYPE_LABELS[control.value]}.`;
+  } else if (role === 'range-low' || role === 'range-high') {
+    const which = role === 'range-low' ? 0 : 1;
+    const limits = RANGE_LIMITS[channel];
+    const range = [...effectiveScale(channel).range];
+    const typed = numberOrNull(control.value);
+    let value = typed ?? range[which];
+    if (channel === 'pitch' || channel === 'rhythm') value = Math.round(value);
+    value = Math.max(limits[0], Math.min(limits[1], value));
+    range[which] = value;
+    // Keep low <= high by moving the other bound rather than rejecting the edit.
+    if (range[0] > range[1]) range[1 - which] = value;
+    patchScale(channel, { range });
+    // Write clamped values back in place; re-rendering here would steal focus.
+    document.getElementById(`scale-${channel}-range-low`).value = range[0];
+    document.getElementById(`scale-${channel}-range-high`).value = range[1];
+    message = `${label} range ${range[0]} to ${range[1]} ${RANGE_UNITS[channel]}.`;
+    if (value !== typed) message += ` Adjusted to stay within ${limits[0]} to ${limits[1]}.`;
+  } else {
+    const min = numberOrNull(document.getElementById(`scale-${channel}-domain-min`).value);
+    const max = numberOrNull(document.getElementById(`scale-${channel}-domain-max`).value);
+    if (min !== null && max !== null && min >= max) {
+      scaleMessage.textContent = `${label} domain minimum must be below the maximum.`;
+      announce(scaleMessage.textContent);
+      return;
+    }
+    if (min === null && max === null) {
+      const { domain, ...rest } = state.scales[channel] || {};
+      state.scales[channel] = rest;
+      message = `${label} domain: auto.`;
+    } else {
+      patchScale(channel, { domain: [min, max] });
+      message = `${label} domain: ${min ?? 'auto'} to ${max ?? 'auto'}.`;
+    }
+  }
+
+  applyScaleChange(message);
+}
+
+function applyScaleChange(message) {
+  renderAll({ skipControls: true, skipScaleControls: true });
+  announce(message);
+  const point = currentPoint();
+  if (point) renderPoint(point, { mode: 'scrub', tempo: tempo() });
+}
+
+function resetScales() {
+  state.scales = {};
+  scaleMessage.textContent = '';
+  renderAll({ skipControls: true });
+  announce('Scales reset to defaults.');
 }
 
 function renderAll(options = {}) {
@@ -553,6 +731,7 @@ function renderAll(options = {}) {
     renderDatasetButtons();
     renderFieldMappingControls();
   }
+  if (!options.skipScaleControls) renderScaleControls();
 
   chartType.textContent = `${state.dataset.rows.length} rows · ${state.dataset.fields.length} fields`;
   mappingFit.textContent = 'Custom grammar';

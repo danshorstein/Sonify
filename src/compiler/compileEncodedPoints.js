@@ -1,5 +1,6 @@
-import { extent, uniqueValues, categoryIndex, getField } from '../data/schema.js';
-import { normalize, pentatonicMidi, midiToFrequency } from '../transform/scales.js';
+import { numericValues, uniqueValues, categoryIndex, getField } from '../data/schema.js';
+import { createUnitScale, pentatonicLadder, ladderMidi, lerp, midiToFrequency } from '../transform/scales.js';
+import { DEFAULT_SCALES } from '../spec/defaultScales.js';
 import { orderRows } from '../transform/transformData.js';
 import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from '../audio/instruments.js';
 
@@ -22,18 +23,21 @@ export function compileEncodedPoints(spec) {
   const encoding = spec.encoding;
   const allRows = spec.data.values;
 
-  const extents = {};
-  const quantNormalize = (channel, row) => {
+  // Scale descriptions in the spec win over defaults, channel by channel.
+  const scaleFor = (channel) => ({ ...DEFAULT_SCALES[channel], ...(encoding[channel]?.scale || {}) });
+  const unitScales = {};
+  const unitFor = (channel, row) => {
     const field = encoding[channel]?.field;
     if (!field) return null;
-    if (!extents[field]) extents[field] = extent(allRows, field);
-    return normalize(row[field], extents[field]);
+    if (!unitScales[channel]) unitScales[channel] = createUnitScale(scaleFor(channel), numericValues(allRows, field));
+    return unitScales[channel](row[field]);
   };
   const catIndex = (channel, row) => {
     const field = encoding[channel]?.field;
     if (!field) return null;
     return categoryIndex(allRows, field, row[field]);
   };
+  const pitchLadder = pentatonicLadder(scaleFor('pitch').range);
 
   const identityField = encoding.timbre?.field || encoding.chord?.field || encoding.motif?.field || null;
   const timeField = encoding.time?.field || null;
@@ -45,27 +49,28 @@ export function compileEncodedPoints(spec) {
     };
 
     // pitch -> bounded pentatonic MIDI ladder (never raw value -> Hz)
-    const pitchNorm = quantNormalize('pitch', row);
-    const midi = pitchNorm === null ? 60 : pentatonicMidi(pitchNorm);
+    const pitchUnit = unitFor('pitch', row);
+    const midi = pitchUnit === null ? 60 : ladderMidi(pitchLadder, pitchUnit);
     note('pitch', row[encoding.pitch?.field], midi);
 
-    const durationNorm = quantNormalize('duration', row);
+    const durationUnit = unitFor('duration', row);
     const defaultDuration = ARTICULATION_DURATIONS[spec.tone?.articulation] ?? 0.28;
-    const duration = durationNorm === null ? defaultDuration : 0.16 + durationNorm * 0.48;
+    const duration = durationUnit === null ? defaultDuration : lerp(scaleFor('duration').range, durationUnit);
     note('duration', row[encoding.duration?.field], Number(duration.toFixed(3)));
 
-    const volumeNorm = quantNormalize('volume', row);
-    const gain = volumeNorm === null ? 0.13 : 0.06 + volumeNorm * 0.12;
+    const volumeUnit = unitFor('volume', row);
+    const gain = volumeUnit === null ? 0.13 : lerp(scaleFor('volume').range, volumeUnit);
     note('volume', row[encoding.volume?.field], Number(gain.toFixed(3)));
 
     let pan = 0;
     if (encoding.pan?.field) {
       const panField = getField(dataset, encoding.pan.field);
+      const panRange = scaleFor('pan').range;
       if (panField?.type === 'quantitative') {
-        pan = -0.75 + quantNormalize('pan', row) * 1.5;
+        pan = lerp(panRange, unitFor('pan', row));
       } else {
         const values = uniqueValues(allRows, encoding.pan.field);
-        pan = values.length <= 1 ? 0 : -0.75 + (catIndex('pan', row) / (values.length - 1)) * 1.5;
+        pan = values.length <= 1 ? 0 : lerp(panRange, catIndex('pan', row) / (values.length - 1));
       }
       note('pan', row[encoding.pan.field], Number(pan.toFixed(2)));
     }
@@ -91,13 +96,13 @@ export function compileEncodedPoints(spec) {
 
     let pulseCount = 0;
     if (encoding.rhythm?.field) {
-      pulseCount = 1 + Math.round(quantNormalize('rhythm', row) * 6);
+      pulseCount = Math.round(lerp(scaleFor('rhythm').range, unitFor('rhythm', row)));
       note('rhythm', row[encoding.rhythm.field], pulseCount);
     }
 
     let statusState = null;
     if (encoding.status?.field) {
-      statusState = statusStateFor(quantNormalize('status', row));
+      statusState = statusStateFor(unitFor('status', row), scaleFor('status').thresholds);
       note('status', row[encoding.status.field], statusState.name);
     }
 

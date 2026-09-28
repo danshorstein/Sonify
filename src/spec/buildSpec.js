@@ -1,19 +1,5 @@
 import { getField } from '../data/schema.js';
-import { WAVEFORMS } from '../audio/instruments.js';
-
-// Default scale descriptions per channel. Ranges are bounded on purpose:
-// the grammar forbids unbounded pitch ranges and raw value -> Hz mappings.
-const DEFAULT_SCALES = {
-  pitch: { domain: 'auto', range: [48, 72], rangeType: 'midiPentatonic', scaleType: 'linear', polarity: 'positive', clamp: true },
-  duration: { domain: 'auto', range: [0.16, 0.64], scaleType: 'linear', polarity: 'positive' },
-  volume: { domain: 'auto', range: [0.06, 0.18], scaleType: 'linear', polarity: 'positive' },
-  pan: { domain: 'auto', range: [-0.75, 0.75] },
-  rhythm: { domain: 'auto', range: [1, 7], output: 'pulseCount' },
-  timbre: { range: WAVEFORMS },
-  chord: { range: 'chordBank' },
-  motif: { range: 'motifBank' },
-  status: { domain: 'auto', thresholds: [0.25, 0.5, 0.75, 1] }
-};
+import { defaultScale } from './defaultScales.js';
 
 export function buildSpec(dataset, fieldMappings, config = {}) {
   const encoding = {};
@@ -25,8 +11,8 @@ export function buildSpec(dataset, fieldMappings, config = {}) {
 
     const entry = { field: field.key, type: field.type };
     if (channel === 'time') entry.sort = 'ascending';
-    const scale = DEFAULT_SCALES[channel];
-    if (scale) entry.scale = JSON.parse(JSON.stringify(scale));
+    const scale = defaultScale(channel);
+    if (scale) entry.scale = { ...scale, ...(config.scales?.[channel] || {}) };
     encoding[channel] = entry;
   });
 

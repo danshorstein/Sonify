@@ -1,4 +1,38 @@
 import { channelDefinitions } from './channels.js';
+import { SCALABLE_CHANNELS } from './defaultScales.js';
+import { RANGE_LIMITS, SCALE_TYPES } from '../transform/scales.js';
+
+function validateScale(channelKey, scale, errors) {
+  if (!scale || typeof scale !== 'object') return;
+  const label = `Channel "${channelKey}" scale`;
+
+  if (scale.scaleType !== undefined && !SCALE_TYPES.includes(scale.scaleType)) {
+    errors.push(`${label}: scaleType must be one of ${SCALE_TYPES.join(', ')}.`);
+  }
+  if (scale.polarity !== undefined && !['positive', 'negative'].includes(scale.polarity)) {
+    errors.push(`${label}: polarity must be "positive" or "negative".`);
+  }
+  if (scale.domain !== undefined && scale.domain !== 'auto') {
+    const domain = scale.domain;
+    const bounds = Array.isArray(domain) && domain.length === 2 ? domain : null;
+    const numeric = bounds?.every((bound) => bound === null || bound === '' || Number.isFinite(Number(bound)));
+    if (!bounds || !numeric) {
+      errors.push(`${label}: domain must be "auto" or [min, max] (either may be null).`);
+    } else if (bounds.every((bound) => bound !== null && bound !== '') && Number(bounds[0]) >= Number(bounds[1])) {
+      errors.push(`${label}: domain min must be below domain max.`);
+    }
+  }
+
+  const limits = RANGE_LIMITS[channelKey];
+  if (limits && Array.isArray(scale.range)) {
+    const [low, high] = scale.range;
+    if (!Number.isFinite(low) || !Number.isFinite(high) || low > high) {
+      errors.push(`${label}: range must be [low, high] with low <= high.`);
+    } else if (low < limits[0] || high > limits[1]) {
+      errors.push(`${label}: range must stay within ${limits[0]} to ${limits[1]} (ranges are bounded).`);
+    }
+  }
+}
 
 export function validateSpec(spec) {
   const errors = [];
@@ -33,6 +67,7 @@ export function validateSpec(spec) {
       if (!channel.accepted.includes(field.type)) {
         errors.push(`Channel "${channelKey}" does not accept ${field.type} field "${entry.field}".`);
       }
+      if (SCALABLE_CHANNELS.includes(channelKey)) validateScale(channelKey, entry.scale, errors);
     });
   }
 
