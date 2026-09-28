@@ -29,6 +29,9 @@ export const STATUS_STATES = [
   { threshold: 1, name: 'critical', chord: [43, 46, 49, 54], wave: 'sawtooth', volume: 0.03 }
 ];
 
-export function statusStateFor(normalized) {
-  return STATUS_STATES.find((state) => normalized <= state.threshold) || STATUS_STATES[STATUS_STATES.length - 1];
+// thresholds (optional) are four ascending upper bounds, one per state, from
+// the status channel's scale description; they default to the built-in ones.
+export function statusStateFor(normalized, thresholds) {
+  const index = STATUS_STATES.findIndex((state, i) => normalized <= (thresholds?.[i] ?? state.threshold));
+  return STATUS_STATES[index === -1 ? STATUS_STATES.length - 1 : index];
 }

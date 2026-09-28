@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test \"tests/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"tests/e2e/*.e2e.js\""
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -14,5 +16,8 @@
     "typescript": "latest",
     "react": "latest",
     "react-dom": "latest"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.1"
   }
 }

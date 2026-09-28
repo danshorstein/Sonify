@@ -67,6 +67,45 @@ operable with the visual preview hidden. All speech via the Web Speech API
 
 ---
 
+## Implementation Status
+
+| Phase | Status |
+|---|---|
+| 1. Modular refactor | Shipped |
+| 2. Sonify spec + encoded points | Shipped |
+| 3. Interactive point renderer | Shipped |
+| 4. Timeline queue playback + region zoom | Shipped |
+| 5. Vega-Lite/Altair adapter + dual rendering | Shipped |
+| 6. Auditory legends | Shipped |
+| 7. Scale controls | Shipped |
+| 8. Composition modes | Shipped |
+| 9. Transform layer | Shipped |
+
+Implementation notes for Phases 7-9 (where behavior is more specific than the
+phase descriptions below):
+
+- **Scales are real spec data.** `spec.encoding.<channel>.scale` is the single
+  source for domain, range, scaleType, and polarity; the compiler reads it and
+  `src/spec/defaultScales.js` holds the defaults. Ranges are always clamped
+  and bounded (`RANGE_LIMITS` in `src/transform/scales.js`); `validateSpec`
+  rejects out-of-bounds ranges. `log` falls back to `symlog` when the domain
+  reaches zero or below. Pitch snaps to the pentatonic ladder inside the
+  chosen MIDI range.
+- **Composition reorders encoded points.** Group, repeat, and overlay modes
+  compile points group-major, so scrubbing walks a whole group before the next.
+  Overlay aligns groups on shared time steps ("slots", by time value), is
+  capped at 4 groups (`MAX_OVERLAY_GROUPS`, falling back to group sequence
+  with an explanatory note), and plays simplified main tones attenuated by
+  `1/sqrt(voices)`. Repeat mode speaks each group name at its moment in the
+  queue; speech windows are scaled by tempo so real speech duration is honored.
+- **Transforms run before encoding.** `spec.data.values` stays raw and
+  `spec.transform` is applied by `resolveData`; every stage reads the
+  transformed rows and derived fields. A `sort` transform defines playback
+  order (otherwise rows follow the time field). Category identity (timbre,
+  chord, motif, nominal pan) is keyed to the raw data so filtering one
+  category out never reassigns the others' sounds. `bin` + `aggregate count`
+  builds a histogram (bin start on time, count on pitch or rhythm).
+
 ## Purpose
 
 This document captures the proposed engineering direction for evolving Sonify from a promising prototype into a more durable sonification workbench.
@@ -866,6 +905,8 @@ Acceptance criteria:
 
 ### Phase 7: Scale controls
 
+**Status: shipped.** Per-channel polarity, linear/sqrt/log/symlog, bounded range, and manual domain controls; the point inspector shows raw and scaled values; the legend describes reversed and non-linear scales.
+
 Goal: let users shape mappings.
 
 Tasks:
@@ -885,6 +926,8 @@ Acceptance criteria:
 
 ### Phase 8: Composition modes
 
+**Status: shipped.** Row sequence, group sequence, repeat-by-category with speech, and capped, simplified overlay; queue playback, cursor sync, legend, and the preview all follow the chosen mode.
+
 Goal: add Erie-style structure.
 
 Tasks:
@@ -902,6 +945,8 @@ Acceptance criteria:
 - Overlay mode works without breaking stop/play.
 
 ### Phase 9: Transform layer
+
+**Status: shipped.** Filter, sort, aggregate, and bin, with a transform panel, transformed data preview, and derived fields available to the mapping controls.
 
 Goal: support analytical workflows.
 

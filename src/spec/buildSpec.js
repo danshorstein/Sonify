@@ -1,32 +1,23 @@
 import { getField } from '../data/schema.js';
-import { WAVEFORMS } from '../audio/instruments.js';
-
-// Default scale descriptions per channel. Ranges are bounded on purpose:
-// the grammar forbids unbounded pitch ranges and raw value -> Hz mappings.
-const DEFAULT_SCALES = {
-  pitch: { domain: 'auto', range: [48, 72], rangeType: 'midiPentatonic', scaleType: 'linear', polarity: 'positive', clamp: true },
-  duration: { domain: 'auto', range: [0.16, 0.64], scaleType: 'linear', polarity: 'positive' },
-  volume: { domain: 'auto', range: [0.06, 0.18], scaleType: 'linear', polarity: 'positive' },
-  pan: { domain: 'auto', range: [-0.75, 0.75] },
-  rhythm: { domain: 'auto', range: [1, 7], output: 'pulseCount' },
-  timbre: { range: WAVEFORMS },
-  chord: { range: 'chordBank' },
-  motif: { range: 'motifBank' },
-  status: { domain: 'auto', thresholds: [0.25, 0.5, 0.75, 1] }
-};
+import { defaultScale } from './defaultScales.js';
+import { applyTransforms } from '../transform/transformData.js';
 
 export function buildSpec(dataset, fieldMappings, config = {}) {
   const encoding = {};
+  const transform = config.transforms || [];
+  // Channels bind to fields as they exist after transforms (aggregates and
+  // bins introduce new ones).
+  const resolved = applyTransforms(dataset.rows, transform, dataset.fields);
 
   Object.entries(fieldMappings).forEach(([channel, fieldKey]) => {
     if (!fieldKey) return;
-    const field = getField(dataset, fieldKey);
+    const field = getField(resolved, fieldKey);
     if (!field) return;
 
     const entry = { field: field.key, type: field.type };
     if (channel === 'time') entry.sort = 'ascending';
-    const scale = DEFAULT_SCALES[channel];
-    if (scale) entry.scale = JSON.parse(JSON.stringify(scale));
+    const scale = defaultScale(channel);
+    if (scale) entry.scale = { ...scale, ...(config.scales?.[channel] || {}) };
     encoding[channel] = entry;
   });
 
@@ -37,7 +28,7 @@ export function buildSpec(dataset, fieldMappings, config = {}) {
       values: dataset.rows,
       fields: dataset.fields
     },
-    transform: [],
+    transform: JSON.parse(JSON.stringify(transform)),
     tone: {
       articulation: config.articulation || 'staccato',
       defaultWaveform: 'sine',
@@ -45,10 +36,10 @@ export function buildSpec(dataset, fieldMappings, config = {}) {
     },
     encoding,
     composition: {
-      mode: 'sequence',
+      mode: config.composition?.mode || 'sequence',
       stepSeconds: 0.72,
-      groupBy: null,
-      overlayBy: null
+      groupBy: config.composition?.groupBy ?? null,
+      overlayBy: config.composition?.overlayBy ?? null
     },
     interaction: {
       mode: 'scrub',

@@ -65,36 +65,43 @@ function midiToFrequency(midi) {
 
 // Schedules one encoded point (motif lead-in, chord, status harmony, rhythm
 // pulses, then the main value tone) at an absolute AudioContext time.
+// `simplified` plays only the main value tone (used when several overlaid
+// voices sound at once) and `gainScale` attenuates every layer.
 // Returns the point's total lead-in offset in seconds.
-export function schedulePoint(point, { start, tempo = 1 } = {}) {
+export function schedulePoint(point, { start, tempo = 1, simplified = false, gainScale = 1 } = {}) {
   ensureAudioContext();
   const audio = point.audio;
   const eventStart = start ?? now() + 0.05;
   const pan = audio.pan;
 
+  if (simplified) {
+    playTone(audio.pitchHz, eventStart + 0.06 / tempo, audio.duration / tempo, audio.waveform, audio.gain * gainScale, pan);
+    return 0;
+  }
+
   if (audio.motif) {
     audio.motif.forEach((midi, index) => {
-      playTone(midiToFrequency(midi), eventStart + index * (0.08 / tempo), 0.055 / tempo, 'triangle', MOTIF_GAIN, pan);
+      playTone(midiToFrequency(midi), eventStart + index * (0.08 / tempo), 0.055 / tempo, 'triangle', MOTIF_GAIN * gainScale, pan);
     });
   }
 
   const mainStart = eventStart + audio.motifLeadIn / tempo;
 
   if (audio.chord) {
-    audio.chord.forEach((midi) => playTone(midiToFrequency(midi), mainStart, 0.26 / tempo, 'sine', CHORD_GAIN, pan));
+    audio.chord.forEach((midi) => playTone(midiToFrequency(midi), mainStart, 0.26 / tempo, 'sine', CHORD_GAIN * gainScale, pan));
   }
 
   if (audio.statusState) {
     audio.statusState.chord.forEach((midi) => {
-      playTone(midiToFrequency(midi), mainStart, 0.42 / tempo, audio.statusState.wave, audio.statusState.volume, pan);
+      playTone(midiToFrequency(midi), mainStart, 0.42 / tempo, audio.statusState.wave, audio.statusState.volume * gainScale, pan);
     });
   }
 
   for (let i = 0; i < audio.pulseCount; i += 1) {
-    playTone(audio.pitchHz * 2, mainStart + i * (0.055 / tempo), 0.028 / tempo, 'square', PULSE_GAIN, pan);
+    playTone(audio.pitchHz * 2, mainStart + i * (0.055 / tempo), 0.028 / tempo, 'square', PULSE_GAIN * gainScale, pan);
   }
 
-  playTone(audio.pitchHz, mainStart + 0.06 / tempo, audio.duration / tempo, audio.waveform, audio.gain, pan);
+  playTone(audio.pitchHz, mainStart + 0.06 / tempo, audio.duration / tempo, audio.waveform, audio.gain * gainScale, pan);
 
   return audio.motifLeadIn / tempo;
 }
@@ -133,20 +140,28 @@ export function playEvents(events) {
 
 // Schedules a compiled audio queue and tracks progress so the UI cursor can
 // follow along. onStep receives each point's dataset index as it sounds;
-// onDone fires once at the end. stopAll() cancels both audio and tracking.
-export function playQueue(queue, { tempo = 1, onStep, onDone } = {}) {
+// onSpeech receives spoken cue text (group announcements) at its moment;
+// onDone fires once at the end. Items are sorted by offset, and simultaneous
+// (overlaid) points report a single step. stopAll() cancels audio and tracking.
+export function playQueue(queue, { tempo = 1, onStep, onSpeech, onDone } = {}) {
   ensureAudioContext();
   stopAll();
   if (!queue.items.length) return;
 
   const base = now() + 0.1;
-  queue.items.forEach(({ point, offsetSeconds }) => {
-    schedulePoint(point, { start: base + offsetSeconds / tempo, tempo });
+  queue.items.forEach((item) => {
+    if (item.kind === 'speech') return;
+    schedulePoint(item.point, {
+      start: base + item.offsetSeconds / tempo,
+      tempo,
+      simplified: item.simplified,
+      gainScale: item.gainScale
+    });
   });
 
   const totalSeconds = queue.totalSeconds / tempo;
-  const stepSeconds = queue.stepSeconds / tempo;
-  let lastFired = -1;
+  let next = 0;
+  let lastStepOffset = null;
 
   queueWatcher = setInterval(() => {
     const elapsed = now() - base;
@@ -157,10 +172,16 @@ export function playQueue(queue, { tempo = 1, onStep, onDone } = {}) {
       return;
     }
     if (elapsed < 0) return;
-    const position = Math.min(queue.items.length - 1, Math.floor(elapsed / stepSeconds));
-    if (position !== lastFired) {
-      lastFired = position;
-      onStep?.(queue.items[position].point.index);
+
+    while (next < queue.items.length && queue.items[next].offsetSeconds / tempo <= elapsed) {
+      const item = queue.items[next];
+      next += 1;
+      if (item.kind === 'speech') {
+        onSpeech?.(item.text);
+      } else if (item.offsetSeconds !== lastStepOffset) {
+        lastStepOffset = item.offsetSeconds;
+        onStep?.(item.point.index);
+      }
     }
   }, 50);
 }

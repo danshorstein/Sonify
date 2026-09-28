@@ -46,6 +46,74 @@
         </article>
       </section>
 
+      <section class="panel" aria-labelledby="transform-title">
+        <div class="section-header">
+          <h2 id="transform-title">Transform the data</h2>
+          <button id="clear-transforms" class="secondary-button">Clear transforms</button>
+        </div>
+        <p class="description">
+          Optional. Filter, sort, aggregate, or bin the rows before they are sonified. Steps run top to bottom, and the data preview,
+          mapping choices, and audio all use the transformed rows. A sort step sets playback order. Aggregating or binning creates new
+          fields (for example a count per bin) that you can map to pitch, rhythm, or time. Imported charts keep showing their original
+          data; only the audio and data preview change.
+        </p>
+        <ol id="transform-list" class="transform-list" aria-label="Active transforms"></ol>
+        <p id="transform-empty" class="description scale-empty">No transforms. All rows are sonified in their original order.</p>
+        <form id="transform-form" class="transform-form" aria-labelledby="transform-form-title">
+          <h3 id="transform-form-title" class="transform-form-title">Add a transform</h3>
+          <div class="transform-form-grid">
+            <div class="scale-row">
+              <label for="transform-type">Type</label>
+              <select id="transform-type">
+                <option value="filter">Filter rows</option>
+                <option value="sort">Sort rows</option>
+                <option value="aggregate">Aggregate (group and summarize)</option>
+                <option value="bin">Bin a numeric field</option>
+              </select>
+            </div>
+            <div id="transform-fields" class="transform-fields"></div>
+          </div>
+          <div class="controls">
+            <button type="submit" class="primary-button">Add transform</button>
+          </div>
+        </form>
+        <p id="transform-message" class="import-error" role="alert"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="scale-title">
+        <div class="section-header">
+          <h2 id="scale-title">Shape the scales</h2>
+          <button id="reset-scales" class="secondary-button">Reset scales</button>
+        </div>
+        <p class="description">
+          Each mapped numeric channel has a scale: <strong>polarity</strong> (do higher values go higher or lower?),
+          <strong>scale type</strong> (linear, square root, or logarithmic spacing), a bounded <strong>range</strong>
+          (how far the audio moves), and a <strong>domain</strong> (which data values span that range; blank means auto).
+          Changes apply immediately and you hear the current point.
+        </p>
+        <div id="scale-controls" class="scale-grid"></div>
+        <p id="scale-message" class="import-error" role="alert"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="composition-title">
+        <h2 id="composition-title">Composition</h2>
+        <p class="description">
+          How the rows are arranged in time when you press Play. Grouped modes also change the order you scrub through the points.
+        </p>
+        <div class="transform-form-grid">
+          <div class="scale-row">
+            <label for="composition-mode">Playback mode</label>
+            <select id="composition-mode"></select>
+          </div>
+          <div class="scale-row">
+            <label for="composition-group">Group by</label>
+            <select id="composition-group"></select>
+          </div>
+        </div>
+        <p id="composition-description" class="description"></p>
+        <p id="composition-note" class="import-error"></p>
+      </section>
+
       <section class="panel" aria-labelledby="import-title">
         <h2 id="import-title">Import a Vega-Lite or Altair chart</h2>
         <p class="description import-description">
