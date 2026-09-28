@@ -129,6 +129,15 @@ covered by Node's built-in test runner (no dependencies):
 npm test
 ```
 
+Browser tests (Playwright driving real Chromium against the static app) cover
+scale controls, transforms, composition modes, keyboard exploration, the
+legend, and Vega-Lite import. They block the vega CDN, so they run offline.
+
+```bash
+npm install
+npm run test:e2e   # set CHROMIUM_PATH if Chromium is not in a default location
+```
+
 ## Legacy prototypes
 
 `legacy/backend` (FastAPI static-WAV compiler) and `legacy/frontend` (React
