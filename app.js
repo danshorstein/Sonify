@@ -5,6 +5,7 @@ import { presets } from './src/spec/defaultMappings.js';
 import { buildSpec } from './src/spec/buildSpec.js';
 import { SCALABLE_CHANNELS, defaultScale } from './src/spec/defaultScales.js';
 import { RANGE_LIMITS, SCALE_TYPES, resolveDomain } from './src/transform/scales.js';
+import { applyTransforms, FILTER_OPS, AGGREGATE_OPS } from './src/transform/transformData.js';
 import { validateSpec } from './src/spec/validateSpec.js';
 import { compileEncodedPoints } from './src/compiler/compileEncodedPoints.js';
 import { compileAudioQueue } from './src/compiler/compileAudioQueue.js';
@@ -27,7 +28,11 @@ const state = {
   vizXs: [],
   lastScrubAudioAt: 0,
   imported: null,
-  scales: {}
+  scales: {},
+  transforms: [],
+  suggested: {},
+  resolved: { rows: datasets[0].rows, fields: datasets[0].fields, errors: [], steps: [] },
+  activeMappings: {}
 };
 
 // vega-embed view state for imported charts (Amendment 4 dual rendering).
@@ -70,6 +75,13 @@ const closeHelpButton = document.getElementById('close-help');
 const scaleControls = document.getElementById('scale-controls');
 const scaleMessage = document.getElementById('scale-message');
 const resetScalesButton = document.getElementById('reset-scales');
+const transformList = document.getElementById('transform-list');
+const transformEmpty = document.getElementById('transform-empty');
+const transformForm = document.getElementById('transform-form');
+const transformType = document.getElementById('transform-type');
+const transformFields = document.getElementById('transform-fields');
+const transformMessage = document.getElementById('transform-message');
+const clearTransformsButton = document.getElementById('clear-transforms');
 
 const dataTable = document.createElement('div');
 dataTable.className = 'data-table-shell';
@@ -81,6 +93,7 @@ let helpReturnFocus = null;
 let legendToken = 0;
 
 function init() {
+  recompile();
   renderDatasetButtons();
   renderFieldMappingControls();
   insertAdditionalPanels();
@@ -88,6 +101,9 @@ function init() {
   renderAll();
 
   resetScalesButton.addEventListener('click', resetScales);
+  transformType.addEventListener('change', renderTransformFields);
+  transformForm.addEventListener('submit', addTransform);
+  clearTransformsButton.addEventListener('click', clearTransforms);
   playButton.addEventListener('click', playFromCurrent);
   stopButton.addEventListener('click', stopEverything);
   document.getElementById('legend-button').addEventListener('click', playLegend);
@@ -196,9 +212,9 @@ function currentPoint() {
 }
 
 function pitchFieldInfo() {
-  const fieldKey = state.mappings.pitch;
+  const fieldKey = state.activeMappings.pitch;
   if (!fieldKey) return null;
-  return { key: fieldKey, label: getField(state.dataset, fieldKey)?.label || fieldKey };
+  return { key: fieldKey, label: getField(state.resolved, fieldKey)?.label || fieldKey };
 }
 
 function pointSummary(point) {
@@ -255,7 +271,7 @@ function speakCurrentPoint() {
   const details = Object.entries(point.explanation)
     .filter(([channel]) => channel !== 'pitch')
     .map(([, detail]) => {
-      const label = getField(state.dataset, detail.field)?.label || detail.field;
+      const label = getField(state.resolved, detail.field)?.label || detail.field;
       return `${label} ${detail.raw}`;
     });
   const seen = new Set();
@@ -456,6 +472,8 @@ function importVegaLite() {
   state.dataset = result.dataset;
   state.mappings = { ...result.mappings };
   state.scales = {};
+  state.transforms = [];
+  state.suggested = {};
   state.currentIndex = 0;
   state.anchorIndex = null;
   state.region = null;
@@ -464,11 +482,33 @@ function importVegaLite() {
   announce(`Imported ${result.dataset.name}: ${result.dataset.rows.length} points. Suggested mappings applied. Focus the chart to explore.`);
 }
 
+// Mappings that are valid for the transformed fields. state.mappings keeps
+// the user's intent, so a mapping to a field that a transform temporarily
+// removes comes back when the transform is removed. While the user's field is
+// missing, a suggested replacement (state.suggested) stands in; an explicit
+// Off (null) is never overridden.
+function activeMappingsFor(fields, suggested = state.suggested) {
+  const active = {};
+  const usable = (channel, key) => {
+    const definition = channelDefinitions.find((candidate) => candidate.key === channel);
+    const field = key && fields.find((candidate) => candidate.key === key);
+    return Boolean(definition && field && definition.accepted.includes(field.type));
+  };
+  Object.entries(state.mappings).forEach(([channel, key]) => {
+    if (usable(channel, key)) active[channel] = key;
+    else if (key && usable(channel, suggested[channel])) active[channel] = suggested[channel];
+  });
+  return active;
+}
+
 function recompile() {
-  state.spec = buildSpec(state.dataset, state.mappings, {
+  state.resolved = applyTransforms(state.dataset.rows, state.transforms, state.dataset.fields);
+  state.activeMappings = activeMappingsFor(state.resolved.fields);
+  state.spec = buildSpec(state.dataset, state.activeMappings, {
     tempo: tempo(),
     articulation: state.dataset.articulation,
-    scales: state.scales
+    scales: state.scales,
+    transforms: state.transforms
   });
   const validation = validateSpec(state.spec);
   if (!validation.valid) {
@@ -513,6 +553,8 @@ function renderDatasetButtons() {
     button.addEventListener('click', () => {
       state.dataset = dataset;
       state.scales = {};
+      state.transforms = [];
+      state.suggested = {};
       state.mappings = dataset.id === 'imported' ? { ...state.imported.mappings } : { ...presets[dataset.id] };
       state.currentIndex = 0;
       state.anchorIndex = null;
@@ -532,9 +574,9 @@ function renderFieldMappingControls() {
     const wrapper = document.createElement('label');
     wrapper.className = 'mapping-control';
 
-    const options = state.dataset.fields
+    const options = state.resolved.fields
       .filter((field) => channel.accepted.includes(field.type))
-      .map((field) => `<option value="${field.key}" ${state.mappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
+      .map((field) => `<option value="${field.key}" ${state.activeMappings[channel.key] === field.key ? 'selected' : ''}>${field.label} (${field.type})</option>`)
       .join('');
 
     wrapper.innerHTML = `
@@ -580,10 +622,10 @@ function patchScale(channel, patch) {
 
 function scaledChannels() {
   return SCALABLE_CHANNELS.filter((channel) => {
-    const key = state.mappings[channel];
+    const key = state.activeMappings[channel];
     if (!key) return false;
     // Nominal pan spreads categories evenly; there is no numeric scale to shape.
-    if (channel === 'pan') return getField(state.dataset, key)?.type === 'quantitative';
+    if (channel === 'pan') return getField(state.resolved, key)?.type === 'quantitative';
     return true;
   });
 }
@@ -606,9 +648,9 @@ function renderScaleControls() {
 
   scaleControls.innerHTML = channels.map((channel) => {
     const definition = channelDefinitions.find((candidate) => candidate.key === channel);
-    const field = getField(state.dataset, state.mappings[channel]);
+    const field = getField(state.resolved, state.activeMappings[channel]);
     const scale = effectiveScale(channel);
-    const [autoMin, autoMax] = resolveDomain('auto', numericValues(state.dataset.rows, field.key));
+    const [autoMin, autoMax] = resolveDomain('auto', numericValues(state.resolved.rows, field.key));
     const domain = Array.isArray(scale.domain) ? scale.domain : [null, null];
     const id = (name) => `scale-${channel}-${name}`;
     const [positiveLabel, negativeLabel] = POLARITY_LABELS[channel];
@@ -724,6 +766,182 @@ function resetScales() {
   announce('Scales reset to defaults.');
 }
 
+function fieldOptions(fields, predicate = () => true, selected = null) {
+  return fields
+    .filter(predicate)
+    .map((field) => `<option value="${escapeHtml(field.key)}" ${field.key === selected ? 'selected' : ''}>${escapeHtml(field.label)} (${field.type})</option>`)
+    .join('');
+}
+
+function renderTransformPanel() {
+  const { steps } = state.resolved;
+  transformList.innerHTML = '';
+  state.transforms.forEach((transform, index) => {
+    const step = steps[index];
+    const item = document.createElement('li');
+    if (step?.error) item.className = 'transform-error';
+    const text = document.createElement('span');
+    text.textContent = `${index + 1}. ${step?.description || transform.type}`;
+    const status = document.createElement('span');
+    status.className = 'transform-rows';
+    status.textContent = step?.error ? 'skipped: invalid' : `${step?.rowCount ?? 0} rows`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'secondary-button';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', `Remove step ${index + 1}: ${step?.description || transform.type}`);
+    remove.addEventListener('click', () => removeTransform(index));
+    item.append(text, status, remove);
+    transformList.appendChild(item);
+  });
+  transformEmpty.hidden = state.transforms.length > 0;
+  clearTransformsButton.disabled = state.transforms.length === 0;
+  renderTransformFields();
+}
+
+function renderTransformFields() {
+  const fields = state.resolved.fields;
+  const type = transformType.value;
+  const numeric = (field) => field.type === 'quantitative';
+
+  if (type === 'filter') {
+    transformFields.innerHTML = `
+      <div class="scale-row"><label for="tf-field">Field</label><select id="tf-field">${fieldOptions(fields)}</select></div>
+      <div class="scale-row"><label for="tf-op">Condition</label>
+        <select id="tf-op">${FILTER_OPS.map((op) => `<option value="${op}">${op === 'contains' ? 'contains' : op}</option>`).join('')}</select></div>
+      <div class="scale-row"><label for="tf-value">Value</label><input id="tf-value" type="text" autocomplete="off" /></div>`;
+  } else if (type === 'sort') {
+    transformFields.innerHTML = `
+      <div class="scale-row"><label for="tf-field">Field</label><select id="tf-field">${fieldOptions(fields)}</select></div>
+      <div class="scale-row"><label for="tf-order">Order</label>
+        <select id="tf-order"><option value="ascending">Ascending</option><option value="descending">Descending</option></select></div>`;
+  } else if (type === 'aggregate') {
+    const checks = fields
+      .map((field) => `<label><input type="checkbox" name="tf-group" value="${escapeHtml(field.key)}" /> ${escapeHtml(field.label)}</label>`)
+      .join('');
+    transformFields.innerHTML = `
+      <fieldset class="transform-checks"><legend>Group by</legend>${checks || '<span class="scale-empty">No groupable fields</span>'}</fieldset>
+      <div class="scale-row"><label for="tf-agg-op">Summarize with</label>
+        <select id="tf-agg-op">${AGGREGATE_OPS.map((op) => `<option value="${op}">${op}</option>`).join('')}</select></div>
+      <div class="scale-row"><label for="tf-agg-field">Of field</label><select id="tf-agg-field">${fieldOptions(fields, numeric)}</select></div>`;
+    const op = document.getElementById('tf-agg-op');
+    const measure = document.getElementById('tf-agg-field');
+    const sync = () => { measure.disabled = op.value === 'count'; };
+    op.addEventListener('change', sync);
+    sync();
+  } else {
+    transformFields.innerHTML = `
+      <div class="scale-row"><label for="tf-field">Field</label><select id="tf-field">${fieldOptions(fields, numeric)}</select></div>
+      <div class="scale-row"><label for="tf-bins">Approximate number of bins</label><input id="tf-bins" type="number" min="2" max="50" step="1" value="8" /></div>
+      <div class="scale-row"><label for="tf-step">Or exact bin width (optional)</label><input id="tf-step" type="number" min="0" step="any" placeholder="auto" /></div>`;
+  }
+}
+
+function uniqueFieldKey(base) {
+  const taken = new Set(state.resolved.fields.map((field) => field.key));
+  let key = base;
+  let suffix = 2;
+  while (taken.has(key)) key = `${base}_${suffix++}`;
+  return key;
+}
+
+function readTransformForm() {
+  const type = transformType.value;
+  const value = (id) => document.getElementById(id)?.value;
+
+  if (type === 'filter') {
+    const field = state.resolved.fields.find((candidate) => candidate.key === value('tf-field'));
+    const raw = value('tf-value').trim();
+    const asNumber = raw !== '' && Number.isFinite(Number(raw)) && field?.type !== 'nominal';
+    return { type, field: field?.key, op: value('tf-op'), value: asNumber ? Number(raw) : raw };
+  }
+  if (type === 'sort') return { type, field: value('tf-field'), order: value('tf-order') };
+  if (type === 'aggregate') {
+    const groupBy = [...transformForm.querySelectorAll('input[name="tf-group"]:checked')].map((box) => box.value);
+    const op = value('tf-agg-op');
+    const field = value('tf-agg-field');
+    const as = uniqueFieldKey(op === 'count' ? 'count' : `${op}_${field}`);
+    return { type, groupBy, fields: [op === 'count' ? { op, as } : { field, op, as }] };
+  }
+  const field = value('tf-field');
+  const step = Number(value('tf-step'));
+  const bin = { type, field, as: uniqueFieldKey(`bin_${field}`) };
+  if (step > 0) bin.step = step;
+  else bin.maxbins = Math.max(2, Math.min(50, Math.round(Number(value('tf-bins')) || 8)));
+  return bin;
+}
+
+function transformFail(message) {
+  transformMessage.textContent = message;
+  announce(message);
+}
+
+// After an aggregate, time and pitch usually lose their fields. Point them at
+// the new grouping and measure so the sonification stays audible.
+function suggestMappingsAfter(transform, previouslyActive) {
+  if (transform.type !== 'aggregate') return [];
+  const fields = applyTransforms(state.dataset.rows, [...state.transforms, transform], state.dataset.fields).fields;
+  const active = activeMappingsFor(fields, {});
+  const suggested = [];
+  const groupField = transform.groupBy[0];
+  const measure = transform.fields[0].as;
+  // Only repair channels the user had in use; never turn on ones they left Off.
+  if (!active.time && previouslyActive.includes('time') && groupField) { state.suggested.time = groupField; suggested.push('time'); }
+  if (!active.pitch && previouslyActive.includes('pitch')) { state.suggested.pitch = measure; suggested.push('pitch'); }
+  return suggested;
+}
+
+function addTransform(event) {
+  event.preventDefault();
+  transformMessage.textContent = '';
+  const transform = readTransformForm();
+
+  const candidate = applyTransforms(state.dataset.rows, [...state.transforms, transform], state.dataset.fields);
+  const error = candidate.errors[candidate.errors.length - 1];
+  if (error) return transformFail(error);
+  if (candidate.rows.length === 0) return transformFail('That transform would leave no rows, so it was not added.');
+
+  const before = Object.keys(activeMappingsFor(state.resolved.fields));
+  const suggested = suggestMappingsAfter(transform, before);
+  state.transforms.push(transform);
+  resetPosition();
+  renderAll();
+
+  const dropped = before.filter((channel) => !state.activeMappings[channel]);
+  const notes = [];
+  if (suggested.length) notes.push(`Mapped ${suggested.join(' and ')} to the new fields.`);
+  const stillDropped = dropped.filter((channel) => !suggested.includes(channel));
+  if (stillDropped.length) notes.push(`Unmapped ${stillDropped.join(', ')} because those fields no longer exist; they return if you remove this step, or choose new fields above.`);
+  announce(`Added ${state.resolved.steps[state.transforms.length - 1].description}. ${state.resolved.rows.length} rows. ${notes.join(' ')}`.trim());
+}
+
+function removeTransform(index) {
+  transformMessage.textContent = '';
+  state.transforms.splice(index, 1);
+  resetPosition();
+  renderAll();
+  announce(`Removed step ${index + 1}. ${state.resolved.rows.length} rows.`);
+  transformType.focus();
+}
+
+function clearTransforms() {
+  if (!state.transforms.length) return;
+  transformMessage.textContent = '';
+  state.transforms = [];
+  resetPosition();
+  renderAll();
+  announce(`Transforms cleared. ${state.resolved.rows.length} rows.`);
+}
+
+// Row indexes mean something different after the transformed data changes.
+function resetPosition() {
+  stopAll();
+  state.currentIndex = 0;
+  state.anchorIndex = null;
+  state.region = null;
+  state.zoomed = false;
+}
+
 function renderAll(options = {}) {
   recompile();
 
@@ -732,8 +950,10 @@ function renderAll(options = {}) {
     renderFieldMappingControls();
   }
   if (!options.skipScaleControls) renderScaleControls();
+  if (!options.skipControls) renderTransformPanel();
 
-  chartType.textContent = `${state.dataset.rows.length} rows · ${state.dataset.fields.length} fields`;
+  const transformed = state.transforms.length > 0;
+  chartType.textContent = `${state.resolved.rows.length} rows · ${state.resolved.fields.length} fields${transformed ? ` (from ${state.dataset.rows.length} rows)` : ''}`;
   mappingFit.textContent = 'Custom grammar';
   mappingDescription.textContent = 'Each row is rendered as a small audio event. Your field mappings determine the pitch, rhythm, duration, chord, motif, pan, volume, timbre, and state-harmony cues. This is intentionally a grammar playground, not a finished chart recommendation.';
 
@@ -761,10 +981,10 @@ function renderVisualization() {
   visualization.classList.add('grammar-viz');
   visualization.classList.remove('vega-host');
 
-  const pitchField = state.mappings.pitch || state.dataset.fields.find((field) => field.type === 'quantitative')?.key;
-  const colorField = state.mappings.timbre || state.mappings.chord || state.mappings.motif;
-  const timeField = state.mappings.time;
-  const [min, max] = extent(state.dataset.rows, pitchField);
+  const pitchField = state.activeMappings.pitch || state.resolved.fields.find((field) => field.type === 'quantitative')?.key;
+  const colorField = state.activeMappings.timbre || state.activeMappings.chord || state.activeMappings.motif;
+  const timeField = state.activeMappings.time;
+  const [min, max] = extent(state.resolved.rows, pitchField);
 
   const width = 720;
   const height = 260;
@@ -781,7 +1001,7 @@ function renderVisualization() {
 
   const circles = points.map(({ x, y, row }, index) => {
     const category = colorField ? row[colorField] : '';
-    const hue = colorField ? (categoryIndex(state.dataset.rows, colorField, category) * 72) % 360 : 195;
+    const hue = colorField ? (categoryIndex(state.resolved.rows, colorField, category) * 72) % 360 : 195;
     return `<circle class="viz-point" data-index="${index}" cx="${x}" cy="${y}" r="8" fill="hsl(${hue}, 82%, 68%)"><title>${rowLabel(row)} · ${pitchField}: ${row[pitchField]}</title></circle>`;
   }).join('');
 
@@ -801,7 +1021,7 @@ function renderVisualization() {
       <line id="viz-cursor" class="viz-cursor" x1="0" y1="${pad}" x2="0" y2="${height - pad}" stroke="#f8fafc" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.9" />
       ${circles}
       ${labels}
-      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(state.dataset, pitchField)?.label || 'none'}</text>
+      <text x="${pad}" y="16" fill="#7dd3fc" font-size="12">pitch: ${getField(state.resolved, pitchField)?.label || 'none'}</text>
     </svg>
   `;
 
@@ -1024,10 +1244,10 @@ function indexFromClientX(clientX) {
 }
 
 function renderDataTable() {
-  const rows = state.dataset.rows;
-  const headers = state.dataset.fields.map((field) => `<th>${field.label}</th>`).join('');
+  const rows = state.resolved.rows;
+  const headers = state.resolved.fields.map((field) => `<th>${field.label}</th>`).join('');
   const body = rows.map((row) => {
-    const cells = state.dataset.fields.map((field) => `<td>${row[field.key]}</td>`).join('');
+    const cells = state.resolved.fields.map((field) => `<td>${row[field.key] ?? ''}</td>`).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
 
@@ -1043,10 +1263,10 @@ function renderDataTable() {
 
 function renderExplanation() {
   const items = channelDefinitions
-    .filter((channel) => state.mappings[channel.key])
+    .filter((channel) => state.activeMappings[channel.key])
     .map((channel) => {
-      const field = getField(state.dataset, state.mappings[channel.key]);
-      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || state.mappings[channel.key]}</span>.</li>`;
+      const field = getField(state.resolved, state.activeMappings[channel.key]);
+      return `<li><strong>${channel.label}</strong> uses <span>${field?.label || state.activeMappings[channel.key]}</span>.</li>`;
     })
     .join('');
 
@@ -1092,8 +1312,8 @@ function renderPointInspector() {
 }
 
 function rowLabel(row) {
-  const nominal = state.dataset.fields.find((field) => field.type === 'nominal');
-  const temporal = state.dataset.fields.find((field) => field.type === 'temporal');
+  const nominal = state.resolved.fields.find((field) => field.type === 'nominal');
+  const temporal = state.resolved.fields.find((field) => field.type === 'temporal');
   return [nominal ? row[nominal.key] : null, temporal ? row[temporal.key] : null].filter(Boolean).join(' · ');
 }
 

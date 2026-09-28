@@ -1,7 +1,7 @@
 import { numericValues, uniqueValues, categoryIndex, getField } from '../data/schema.js';
 import { createUnitScale, pentatonicLadder, ladderMidi, lerp, midiToFrequency } from '../transform/scales.js';
 import { DEFAULT_SCALES } from '../spec/defaultScales.js';
-import { orderRows } from '../transform/transformData.js';
+import { orderRows, resolveData } from '../transform/transformData.js';
 import { WAVEFORMS, CHORD_BANK, MOTIF_BANK, statusStateFor } from '../audio/instruments.js';
 
 // Compiles a Sonify spec into navigable encoded points: the single
@@ -17,11 +17,20 @@ const CHORD_NAMES = ['major', 'major add4', 'suspended stack', 'sus2', 'minor se
 const ARTICULATION_DURATIONS = { staccato: 0.28, legato: 0.5, blip: 0.14 };
 
 export function compileEncodedPoints(spec) {
-  const rows = orderRows(spec.data.values, spec.encoding.time?.field, spec.encoding.time?.type);
-  const fields = spec.data.fields;
-  const dataset = { fields };
+  const resolved = resolveData(spec);
   const encoding = spec.encoding;
-  const allRows = spec.data.values;
+  const allRows = resolved.rows;
+  const dataset = { fields: resolved.fields };
+
+  // A sort transform defines playback order; otherwise rows follow the time field.
+  const hasSort = (spec.transform || []).some((transform) => transform.type === 'sort');
+  const rows = hasSort ? [...allRows] : orderRows(allRows, encoding.time?.field, encoding.time?.type);
+
+  // Category identity (timbre, chord, motif, nominal pan) is keyed to the raw
+  // data whenever the field exists there, so filtering out one category does
+  // not silently reassign every other category's sound.
+  const rawFieldKeys = new Set((spec.data.fields || []).map((field) => field.key));
+  const categoryRows = (field) => (rawFieldKeys.has(field) ? spec.data.values : allRows);
 
   // Scale descriptions in the spec win over defaults, channel by channel.
   const scaleFor = (channel) => ({ ...DEFAULT_SCALES[channel], ...(encoding[channel]?.scale || {}) });
@@ -35,7 +44,7 @@ export function compileEncodedPoints(spec) {
   const catIndex = (channel, row) => {
     const field = encoding[channel]?.field;
     if (!field) return null;
-    return categoryIndex(allRows, field, row[field]);
+    return categoryIndex(categoryRows(field), field, row[field]);
   };
   const pitchLadder = pentatonicLadder(scaleFor('pitch').range);
 
@@ -69,7 +78,7 @@ export function compileEncodedPoints(spec) {
       if (panField?.type === 'quantitative') {
         pan = lerp(panRange, unitFor('pan', row));
       } else {
-        const values = uniqueValues(allRows, encoding.pan.field);
+        const values = uniqueValues(categoryRows(encoding.pan.field), encoding.pan.field);
         pan = values.length <= 1 ? 0 : lerp(panRange, catIndex('pan', row) / (values.length - 1));
       }
       note('pan', row[encoding.pan.field], Number(pan.toFixed(2)));

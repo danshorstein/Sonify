@@ -1,4 +1,5 @@
 import { uniqueValues } from '../data/schema.js';
+import { resolveData } from '../transform/transformData.js';
 import { WAVEFORMS, MOTIF_BANK, statusStateFor } from '../audio/instruments.js';
 import { DEFAULT_SCALES } from '../spec/defaultScales.js';
 
@@ -13,7 +14,13 @@ const SCALE_PHRASES = { sqrt: 'a square-root scale', log: 'a logarithmic scale',
 // the total seconds the audio item occupies.
 
 function fieldLabel(spec, key) {
-  return spec.data.fields.find((field) => field.key === key)?.label || key;
+  return resolveData(spec).fields.find((field) => field.key === key)?.label || key;
+}
+
+// Same rule as the compiler: categories come from the raw data when the field
+// exists there, so category identity is stable under filtering.
+function categoryRows(spec, field) {
+  return spec.data.fields.some((candidate) => candidate.key === field) ? spec.data.values : resolveData(spec).rows;
 }
 
 function scaleFor(spec, channel) {
@@ -56,7 +63,7 @@ export function compileLegendQueue(spec, points) {
 
   if (encoding.timbre) {
     say(`Categories of ${fieldLabel(spec, encoding.timbre.field)} are mapped to timbre.`);
-    uniqueValues(spec.data.values, encoding.timbre.field)
+    uniqueValues(categoryRows(spec, encoding.timbre.field), encoding.timbre.field)
       .slice(0, WAVEFORMS.length)
       .forEach((category, index) => {
         say(`${category}:`);
@@ -66,7 +73,7 @@ export function compileLegendQueue(spec, points) {
 
   if (encoding.motif) {
     say(`Categories of ${fieldLabel(spec, encoding.motif.field)} each get a short melodic motif.`);
-    uniqueValues(spec.data.values, encoding.motif.field)
+    uniqueValues(categoryRows(spec, encoding.motif.field), encoding.motif.field)
       .slice(0, MOTIF_BANK.length)
       .forEach((category, index) => {
         say(`${category}:`);

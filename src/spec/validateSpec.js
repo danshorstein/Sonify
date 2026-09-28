@@ -1,6 +1,7 @@
 import { channelDefinitions } from './channels.js';
 import { SCALABLE_CHANNELS } from './defaultScales.js';
 import { RANGE_LIMITS, SCALE_TYPES } from '../transform/scales.js';
+import { resolveData } from '../transform/transformData.js';
 
 function validateScale(channelKey, scale, errors) {
   if (!scale || typeof scale !== 'object') return;
@@ -46,6 +47,14 @@ export function validateSpec(spec) {
   if (!Array.isArray(spec.data?.fields)) {
     errors.push('data.fields must be an array.');
   }
+  const resolved = Array.isArray(spec.data?.values) && Array.isArray(spec.data?.fields) ? resolveData(spec) : null;
+  if (resolved) {
+    errors.push(...resolved.errors);
+    if (spec.data.values.length > 0 && resolved.rows.length === 0 && resolved.errors.length === 0) {
+      errors.push('The transforms leave no rows to sonify.');
+    }
+  }
+
   if (!spec.encoding || typeof spec.encoding !== 'object') {
     errors.push('encoding must be an object.');
   } else {
@@ -59,7 +68,7 @@ export function validateSpec(spec) {
         errors.push(`Channel "${channelKey}" is missing a field.`);
         return;
       }
-      const field = spec.data?.fields?.find((candidate) => candidate.key === entry.field);
+      const field = (resolved?.fields || spec.data?.fields)?.find((candidate) => candidate.key === entry.field);
       if (!field) {
         errors.push(`Channel "${channelKey}" references unknown field "${entry.field}".`);
         return;

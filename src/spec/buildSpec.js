@@ -1,12 +1,17 @@
 import { getField } from '../data/schema.js';
 import { defaultScale } from './defaultScales.js';
+import { applyTransforms } from '../transform/transformData.js';
 
 export function buildSpec(dataset, fieldMappings, config = {}) {
   const encoding = {};
+  const transform = config.transforms || [];
+  // Channels bind to fields as they exist after transforms (aggregates and
+  // bins introduce new ones).
+  const resolved = applyTransforms(dataset.rows, transform, dataset.fields);
 
   Object.entries(fieldMappings).forEach(([channel, fieldKey]) => {
     if (!fieldKey) return;
-    const field = getField(dataset, fieldKey);
+    const field = getField(resolved, fieldKey);
     if (!field) return;
 
     const entry = { field: field.key, type: field.type };
@@ -23,7 +28,7 @@ export function buildSpec(dataset, fieldMappings, config = {}) {
       values: dataset.rows,
       fields: dataset.fields
     },
-    transform: [],
+    transform: JSON.parse(JSON.stringify(transform)),
     tone: {
       articulation: config.articulation || 'staccato',
       defaultWaveform: 'sine',
